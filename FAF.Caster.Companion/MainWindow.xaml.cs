@@ -41,6 +41,23 @@ public partial class MainWindow : Window
     private int _sentMetadataRevision = -1;
     private DateTime _metadataRetryUtc = DateTime.MinValue;
     private bool _sendingMetadata;
+    private readonly string _diagnosticsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "FAFCaster", "companion-diagnostics.log");
+    private long _lastDiagnosticRecordCount;
+    private DateTime _lastDiagnosticUtc = DateTime.MinValue;
+
+    private void Diagnostic(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_diagnosticsPath)!);
+            File.AppendAllText(_diagnosticsPath,
+                $"{DateTime.UtcNow:O} | {message}{Environment.NewLine}");
+        }
+        catch (IOException) { /* Diagnostics must never interrupt telemetry. */ }
+        catch (UnauthorizedAccessException) { /* Diagnostics are best-effort. */ }
+    }
 
 
     private void AddActivity(string message)
@@ -69,9 +86,10 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Diagnostic($"Companion started; logsDirectory={_logsDirectory}");
         _timer.Tick += async (_, _) => await ScanAsync();
         _timer.Start();
-        Closed += (_, _) => { _timer.Stop(); CloseReader(); _http.Dispose(); };
+        Closed += (_, _) => { Diagnostic("Companion closed"); _timer.Stop(); CloseReader(); _http.Dispose(); };
         _ = ScanAsync();
     }
 
@@ -87,12 +105,17 @@ public partial class MainWindow : Window
             {
                 LogPathText.Text = _logsDirectory;
                 LogStatusText.Text = "No game_*.log or replay_*.log files found";
-                if (_currentFile is not null) ResetFile(null);
+                if (_currentFile is not null)
+                {
+                    Diagnostic($"No eligible logs; previous={_currentFile}");
+                    ResetFile(null);
+                }
                 return;
             }
 
             if (!string.Equals(newest, _currentFile, StringComparison.OrdinalIgnoreCase))
             {
+                Diagnostic($"Log switch: previous={_currentFile ?? "(none)"}; next={newest}; lastWriteUtc={File.GetLastWriteTimeUtc(newest):O}");
                 ResetFile(newest);
                 AddActivity($"Following {Path.GetFileName(newest)}");
             }
@@ -109,6 +132,7 @@ public partial class MainWindow : Window
                 _armies.Clear();
                 _records = 0;
                 _gameTime = 0;
+                Diagnostic($"Log reset detected; path={newest}; length={file.Length}; previousLength={_lastFileLength}; lastWriteUtc={file.LastWriteTimeUtc:O}; previousWriteUtc={_lastFileWriteUtc:O}");
                 AddActivity("Log reset detected; reopening");
             }
             _lastFileLength = file.Length;
@@ -120,6 +144,7 @@ public partial class MainWindow : Window
                 _reader = new StreamReader(_stream);
                 // Historical data is displayed but must not be sent as a fresh live upload.
                 _readingBacklog = file.LastWriteTimeUtc < DateTime.UtcNow.AddSeconds(-15);
+                Diagnostic($"Reader opened; path={newest}; length={file.Length}; backlog={_readingBacklog}");
             }
 
             // A single scan reads at most 500 lines to keep the WPF UI responsive.
@@ -147,7 +172,18 @@ public partial class MainWindow : Window
                 }
                 catch (JsonException) { /* Ignore incomplete/non-telemetry lines. */ }
             }
-            if (_reader is not null && _reader.EndOfStream) _readingBacklog = false;
+            if (_reader is not null && _reader.EndOfStream && _readingBacklog)
+            {
+                Diagnostic($"Backlog complete; path={newest}; records={_records}");
+                _readingBacklog = false;
+            }
+            if (_records != _lastDiagnosticRecordCount ||
+                DateTime.UtcNow - _lastDiagnosticUtc >= TimeSpan.FromSeconds(15))
+            {
+                Diagnostic($"Scan; path={newest}; linesRead={read - 1}; records={_records}; armies={_armies.Count}; backlog={_readingBacklog}; fileLength={file.Length}; readerPosition={_stream?.Position}; lastTelemetryUtc={_lastReceivedUtc:O}");
+                _lastDiagnosticRecordCount = _records;
+                _lastDiagnosticUtc = DateTime.UtcNow;
+            }
             LogPathText.Text = newest;
             MatchText.Text = Path.GetFileNameWithoutExtension(newest).Replace("game_", "#").Replace("replay_", "#");
             ModeText.Text = Path.GetFileName(newest).StartsWith("game_", StringComparison.OrdinalIgnoreCase)
@@ -166,8 +202,8 @@ public partial class MainWindow : Window
             await FlushAsync();
             LastUpdateText.Text = _records == 0 ? "No telemetry received yet" : $"Last record received locally: {_lastReceivedUtc.ToLocalTime():HH:mm:ss}";
         }
-        catch (IOException ex) { LogStatusText.Text = $"Log access issue: {ex.Message}"; CloseReader(); }
-        catch (UnauthorizedAccessException ex) { LogStatusText.Text = $"Access denied: {ex.Message}"; CloseReader(); }
+        catch (IOException ex) { Diagnostic($"Log access issue: {ex}"); LogStatusText.Text = $"Log access issue: {ex.Message}"; CloseReader(); }
+        catch (UnauthorizedAccessException ex) { Diagnostic($"Access denied: {ex}"); LogStatusText.Text = $"Access denied: {ex.Message}"; CloseReader(); }
         finally { _scanning = false; }
     }
 
@@ -186,6 +222,8 @@ public partial class MainWindow : Window
         _armies.Clear();
         _gameTime = 0;
         _lastReceivedUtc = DateTime.MinValue;
+        _lastDiagnosticRecordCount = 0;
+        _lastDiagnosticUtc = DateTime.MinValue;
         RecordsText.Text = "0";
         PlayersText.Text = "0";
         GameTimeText.Text = "—";
