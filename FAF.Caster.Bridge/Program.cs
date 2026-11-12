@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.FileProviders;
 using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,15 +11,44 @@ builder.Services.AddSingleton<TelemetryStore>();
 builder.Services.AddHostedService<LogTailService>();
 var app = builder.Build();
 app.UseWebSockets();
+// Serve a built React dashboard on the same loopback origin as the Bridge.
+// In development Vite continues to proxy /local-api and /local-ws.
+var dashboardPath = builder.Configuration["dashboard"];
+if (string.IsNullOrWhiteSpace(dashboardPath))
+    dashboardPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "FAF.Caster.dashboard", "dist"));
+else
+    dashboardPath = Path.GetFullPath(dashboardPath);
+if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "index.html")))
+{
+    var files = new PhysicalFileProvider(dashboardPath);
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
+    app.MapGet("/", () => Results.Redirect("/local"));
+    app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+}
+else
+{
+    app.Logger.LogInformation("Built dashboard not found at {Path}; run npm run build in FAF.Caster.dashboard", dashboardPath);
+}
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,
     lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
 }));
+app.MapGet("/local-api/health", (TelemetryStore store) => Results.Ok(new {
+    status = "ok", players = store.Count, records = store.Records,
+    lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
+}));
+app.MapGet("/local-api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
+app.MapGet("/local-api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
+app.MapGet("/local-api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
 app.MapGet("/api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
 app.MapGet("/api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
 app.MapGet("/api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
-app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
+app.Map("/ws", StreamTelemetry);
+app.Map("/local-ws", StreamTelemetry);
+async Task StreamTelemetry(HttpContext context, TelemetryStore store)
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -39,7 +69,7 @@ app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
     catch (OperationCanceledException) { }
     catch (WebSocketException) { }
     finally { store.Unsubscribe(id); }
-});
+}
 await app.RunAsync();
 
 static Task Send(WebSocket socket, string json, CancellationToken ct) =>
