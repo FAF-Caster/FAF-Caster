@@ -1,0 +1,35 @@
+# .NET
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+# React / Node
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+secrets.json
+
+# Logs and telemetry
+*.log
+*.fafreplay
+telemetry/
+logs/
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.idea/
+.vscode/
