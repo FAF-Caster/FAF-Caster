@@ -132,8 +132,8 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             "Forged Alliance Forever", "logs");
         string? path = null;
         logger.LogInformation(string.IsNullOrWhiteSpace(explicitPath)
-            ? "Auto-detecting newest replay_*.log in {Directory}"
-            : "Watching explicitly selected replay log", logsDirectory);
+            ? "Auto-detecting newest game_*.log or replay_*.log in {Directory}"
+            : "Watching explicitly selected FAF log in {Directory}", logsDirectory);
         long position = 0;
         string pending = "";
         DateTime lastWrite = DateTime.MinValue;
@@ -142,10 +142,10 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             try
             {
                 // An explicit --log keeps the original fixed-file behaviour.
-                // Otherwise, switch when a newer replay log is created or modified.
+                // Otherwise, use the same game/replay selection order as the Companion.
                 string? candidate = !string.IsNullOrWhiteSpace(explicitPath)
                     ? Path.GetFullPath(explicitPath)
-                    : FindLatestReplay(logsDirectory);
+                    : FindLatestLog(logsDirectory);
                 if (!string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
                 {
                     path = candidate;
@@ -154,7 +154,7 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                     lastWrite = DateTime.MinValue;
                     store.Source = path;
                     store.Reset();
-                    if (path is not null) logger.LogInformation("Watching replay log {Path}", path);
+                    if (path is not null) logger.LogInformation("Watching FAF log {Path}", path);
                 }
                 if (path is not null && File.Exists(path))
                 {
@@ -203,13 +203,20 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             await Task.Delay(500, stoppingToken);
         }
     }
-    private static string? FindLatestReplay(string directory)
+    private static string? FindLatestLog(string directory)
     {
         if (!Directory.Exists(directory)) return null;
-        return Directory.EnumerateFiles(directory, "replay_*.log", SearchOption.TopDirectoryOnly)
+        return Directory.EnumerateFiles(directory, "*.log", SearchOption.TopDirectoryOnly)
+            .Where(path =>
+            {
+                var name = Path.GetFileName(path);
+                return name.StartsWith("game_", StringComparison.OrdinalIgnoreCase) ||
+                       name.StartsWith("replay_", StringComparison.OrdinalIgnoreCase);
+            })
             .Select(path => new FileInfo(path))
             .OrderByDescending(info => info.LastWriteTimeUtc)
             .ThenByDescending(info => info.CreationTimeUtc)
+            .ThenByDescending(info => info.Name.StartsWith("game_", StringComparison.OrdinalIgnoreCase))
             .Select(info => info.FullName)
             .FirstOrDefault();
     }
