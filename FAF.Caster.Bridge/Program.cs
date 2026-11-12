@@ -41,6 +41,8 @@ app.MapGet("/local-api/health", (TelemetryStore store) => Results.Ok(new {
     lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
 }));
 app.MapGet("/local-api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
+app.MapGet("/local-api/metadata", (TelemetryStore store) => Results.Ok(store.MetadataSnapshot()));
+app.MapGet("/api/metadata", (TelemetryStore store) => Results.Ok(store.MetadataSnapshot()));
 app.MapGet("/local-api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
 app.MapGet("/local-api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
 app.MapGet("/api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
@@ -78,6 +80,10 @@ static Task Send(WebSocket socket, string json, CancellationToken ct) =>
 sealed class TelemetryStore
 {
     private readonly ConcurrentDictionary<int, JsonElement> _players = new();
+    private LocalMatchMetadata _metadata = new();
+    private readonly object _metadataLock = new();
+    public object MetadataSnapshot() { lock(_metadataLock) return _metadata.Snapshot(); }
+    public void ReadMetadata(string line) { lock(_metadataLock) _metadata.Read(line); }
     private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
     private long _records;
     private readonly object _historyLock = new();
@@ -136,6 +142,7 @@ sealed class TelemetryStore
     public void Reset()
     {
         _players.Clear();
+        lock(_metadataLock) _metadata = new LocalMatchMetadata();
         lock (_historyLock) _history.Clear();
         Interlocked.Exchange(ref _records, 0);
         LastUpdateUtc = null;
@@ -228,6 +235,7 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                         {
                             var line = pending[..end].TrimEnd('\r');
                             pending = pending[(end + 1)..];
+                            store.ReadMetadata(line);
                             var marker = line.IndexOf(Prefix, StringComparison.Ordinal);
                             if (marker < 0) continue;
                             var json = line[(marker + Prefix.Length)..].Trim();
