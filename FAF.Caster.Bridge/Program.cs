@@ -13,8 +13,9 @@ app.UseWebSockets();
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,
-    lastUpdateUtc = store.LastUpdateUtc, source = store.Source
+    lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
 }));
+app.MapGet("/api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
 app.MapGet("/api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
 app.MapGet("/api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
 app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
@@ -28,7 +29,7 @@ app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
     var (id, updates) = store.Subscribe();
     try
     {
-        await Send(socket, JsonSerializer.Serialize(new { type = "snapshot", players = store.Snapshot(), history = store.HistorySnapshot(), source = store.Source }), context.RequestAborted);
+        await Send(socket, JsonSerializer.Serialize(new { type = "snapshot", players = store.Snapshot(), history = store.HistorySnapshot(), source = store.Source, session = store.SessionSnapshot() }), context.RequestAborted);
         await foreach (var message in updates.ReadAllAsync(context.RequestAborted))
         {
             if (socket.State != WebSocketState.Open) break;
@@ -59,7 +60,24 @@ sealed class TelemetryStore
     public int Count => _players.Count;
     public long Records => Interlocked.Read(ref _records);
     public DateTimeOffset? LastUpdateUtc { get; private set; }
-    public string? Source { get; set; }
+    private string? _source;
+    private string? _sessionId;
+    private long _generation;
+    public string? Source => _source;
+    public object SessionSnapshot()
+    {
+        var updated = LastUpdateUtc;
+        var capturing = updated.HasValue && DateTimeOffset.UtcNow - updated.Value < TimeSpan.FromSeconds(15);
+        var matchId = _source is null ? null : Path.GetFileNameWithoutExtension(_source).Split('_').LastOrDefault();
+        return new { mode = "local", sessionId = _sessionId, matchId, generation = Interlocked.Read(ref _generation),
+            status = _source is null ? "waiting" : capturing ? "capturing" : Records > 0 ? "idle" : "detected",
+            source = _source, players = Count, records = Records, lastUpdateUtc = updated };
+    }
+    public void SelectSource(string? source)
+    {
+        _source = source;
+        Reset();
+    }
     public JsonElement[] Snapshot() => _players.OrderBy(p => p.Key).Select(p => p.Value).ToArray();
     public void Update(JsonElement record)
     {
@@ -91,7 +109,9 @@ sealed class TelemetryStore
         lock (_historyLock) _history.Clear();
         Interlocked.Exchange(ref _records, 0);
         LastUpdateUtc = null;
-        var message = JsonSerializer.Serialize(new { type = "snapshot", players = Array.Empty<JsonElement>(), history = HistorySnapshot(), source = Source });
+        _sessionId = _source is null ? null : Guid.NewGuid().ToString("N");
+        Interlocked.Increment(ref _generation);
+        var message = JsonSerializer.Serialize(new { type = "snapshot", players = Array.Empty<JsonElement>(), history = HistorySnapshot(), source = Source, session = SessionSnapshot() });
         foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
     }
     public (Guid, ChannelReader<string>) Subscribe()
@@ -152,8 +172,7 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                     position = 0;
                     pending = "";
                     lastWrite = DateTime.MinValue;
-                    store.Source = path;
-                    store.Reset();
+                    store.SelectSource(path);
                     if (path is not null) logger.LogInformation("Watching FAF log {Path}", path);
                 }
                 if (path is not null && File.Exists(path))
