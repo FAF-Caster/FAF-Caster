@@ -124,7 +124,7 @@ public partial class MainWindow : Window
             // A truncated or replaced file must be reopened; otherwise StreamReader can remain at EOF.
             if (_stream is not null &&
                 (file.Length < _lastFileLength || file.LastWriteTimeUtc < _lastFileWriteUtc ||
-                 (_reader?.EndOfStream == true && file.Length < _stream.Position)))
+                 (file.Length < _stream.Position)))
             {
                 CloseReader();
                 _pending.Clear();
@@ -149,10 +149,11 @@ public partial class MainWindow : Window
 
             // A single scan reads at most 500 lines to keep the WPF UI responsive.
             var read = 0;
+            var reachedEndOfFile = false;
             while (read++ < 500 && _reader is not null)
             {
                 var line = await _reader.ReadLineAsync();
-                if (line is null) break;
+                if (line is null) { reachedEndOfFile = true; break; }
                 _metadata.Read(line);
                 var marker = line.IndexOf(Prefix, StringComparison.Ordinal);
                 if (marker < 0) continue;
@@ -172,7 +173,7 @@ public partial class MainWindow : Window
                 }
                 catch (JsonException) { /* Ignore incomplete/non-telemetry lines. */ }
             }
-            if (_reader is not null && _reader.EndOfStream && _readingBacklog)
+            if (reachedEndOfFile && _readingBacklog)
             {
                 Diagnostic($"Backlog complete; path={newest}; records={_records}");
                 _readingBacklog = false;
