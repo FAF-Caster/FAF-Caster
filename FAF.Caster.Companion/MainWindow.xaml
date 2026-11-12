@@ -1,0 +1,46 @@
+<Window x:Class="FAFCaster.Companion.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="FAF Caster · Companion" Width="800" Height="740" MinWidth="640" MinHeight="600" Background="#0B1220" Foreground="#E9F1FF" FontFamily="Segoe UI" WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <Style TargetType="Button"><Setter Property="Background" Value="#3167E3"/><Setter Property="Foreground" Value="White"/><Setter Property="Padding" Value="16,10"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Margin" Value="0,7,10,0"/><Setter Property="Cursor" Value="Hand"/></Style>
+    <Style TargetType="TextBox"><Setter Property="Background" Value="#28364C"/><Setter Property="Foreground" Value="White"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Padding" Value="12,10"/><Setter Property="CaretBrush" Value="White"/></Style>
+  </Window.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="28">
+      <Grid Margin="0,0,0,20"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock Text="FAF CASTER" FontSize="29" FontWeight="Bold" Foreground="#8BB9FF"/><TextBlock Text="COMPANION  /  BROADCAST CONTROL" FontSize="12" Foreground="#91A4BF"/></StackPanel>
+        <Border Grid.Column="1" Background="#21314B" CornerRadius="16" Padding="15,7" VerticalAlignment="Center"><TextBlock x:Name="StatusText" Text="SEARCHING" Foreground="#8EE5C3" FontWeight="SemiBold"/></Border>
+      </Grid>
+      <Border Background="#172338" CornerRadius="14" Padding="20" Margin="0,0,0,14"><StackPanel>
+        <TextBlock Text="CURRENT MATCH" Foreground="#9DB2CF" FontSize="12"/>
+        <TextBlock x:Name="MatchText" Text="Searching for FAF game..." FontSize="24" FontWeight="Bold" Margin="0,8,0,2"/>
+        <TextBlock x:Name="ModeText" Text="Waiting for a game or replay log" Foreground="#8BB9FF" Margin="0,0,0,12"/>
+        <TextBlock x:Name="LogStatusText" Text="Searching" FontWeight="SemiBold" Foreground="#A6E7D0"/>
+        <TextBlock x:Name="LogPathText" Text="No log selected" TextWrapping="Wrap" Foreground="#91A4BF" FontSize="11" Margin="0,8,0,0"/>
+      </StackPanel></Border>
+      <Border Background="#172338" CornerRadius="14" Padding="20" Margin="0,0,0,14"><StackPanel>
+        <TextBlock Text="LIVE TELEMETRY" Foreground="#9DB2CF" FontSize="12"/>
+        <UniformGrid Columns="3" Margin="0,12,0,0">
+          <StackPanel><TextBlock Text="RECORDS" Foreground="#91A4BF"/><TextBlock x:Name="RecordsText" Text="0" FontSize="28" FontWeight="Bold"/></StackPanel>
+          <StackPanel><TextBlock Text="ARMIES" Foreground="#91A4BF"/><TextBlock x:Name="PlayersText" Text="0" FontSize="28" FontWeight="Bold"/></StackPanel>
+          <StackPanel><TextBlock Text="GAME TIME" Foreground="#91A4BF"/><TextBlock x:Name="GameTimeText" Text="—" FontSize="28" FontWeight="Bold"/></StackPanel>
+        </UniformGrid>
+        <TextBlock x:Name="LastUpdateText" Text="No telemetry received yet" Foreground="#91A4BF" Margin="0,12,0,0"/>
+      </StackPanel></Border>
+      <Border Background="#172338" CornerRadius="14" Padding="20" Margin="0,0,0,14"><StackPanel>
+        <TextBlock Text="CLOUD SESSION" Foreground="#9DB2CF" FontSize="12"/>
+        <TextBlock x:Name="CloudStatusText" Text="Not linked" Foreground="#F5C57A" FontWeight="SemiBold" Margin="0,8,0,12" TextWrapping="Wrap"/>
+        <TextBlock Text="API URL" Foreground="#91A4BF" Margin="0,0,0,5"/>
+        <TextBox x:Name="ApiUrlText" Text="http://127.0.0.1:8787"/>
+        <TextBlock Text="SIX-CHARACTER LINK CODE" Foreground="#91A4BF" Margin="0,12,0,5"/>
+        <TextBox x:Name="SessionCodeText" MaxLength="6"/>
+        <StackPanel Orientation="Horizontal"><Button x:Name="LinkButton" Content="Link session" Click="Link_Click"/><Button Content="Disconnect" Click="Disconnect_Click" Background="#34465F"/></StackPanel>
+        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><TextBlock x:Name="UploadedText" Text="Uploaded: 0" Foreground="#91A4BF"/><TextBlock Text="  ·  " Foreground="#91A4BF"/><TextBlock x:Name="QueueText" Text="0 queued" Foreground="#91A4BF"/></StackPanel>
+      </StackPanel></Border>
+      <Border Background="#172338" CornerRadius="14" Padding="20"><StackPanel>
+        <TextBlock Text="RECENT ACTIVITY" Foreground="#9DB2CF" FontSize="12"/>
+        <TextBlock x:Name="ActivityText" Text="Waiting for activity..." Foreground="#D1DEEF" FontFamily="Consolas" FontSize="12" Margin="0,12,0,10" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal"><Button Content="Open FAF logs" Click="OpenFolder_Click" Background="#34465F"/><Button Content="Rescan now" Click="Rescan_Click" Background="#34465F"/></StackPanel>
+      </StackPanel></Border>
+      <TextBlock Text="Only FAFCASTER telemetry is uploaded. Session credentials are held in memory and cleared when the app closes." Foreground="#91A4BF" FontSize="11" TextWrapping="Wrap" Margin="0,14,0,10"/>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

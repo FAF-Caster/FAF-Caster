@@ -1,0 +1,217 @@
+using System.Collections.Concurrent;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Channels;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.UseUrls("http://127.0.0.1:5077");
+builder.Services.AddSingleton<TelemetryStore>();
+builder.Services.AddHostedService<LogTailService>();
+var app = builder.Build();
+app.UseWebSockets();
+app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
+{
+    status = "ok", players = store.Count, records = store.Records,
+    lastUpdateUtc = store.LastUpdateUtc, source = store.Source
+}));
+app.MapGet("/api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
+app.MapGet("/api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
+app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = 400;
+        return;
+    }
+    using var socket = await context.WebSockets.AcceptWebSocketAsync();
+    var (id, updates) = store.Subscribe();
+    try
+    {
+        await Send(socket, JsonSerializer.Serialize(new { type = "snapshot", players = store.Snapshot(), history = store.HistorySnapshot(), source = store.Source }), context.RequestAborted);
+        await foreach (var message in updates.ReadAllAsync(context.RequestAborted))
+        {
+            if (socket.State != WebSocketState.Open) break;
+            await Send(socket, message, context.RequestAborted);
+        }
+    }
+    catch (OperationCanceledException) { }
+    catch (WebSocketException) { }
+    finally { store.Unsubscribe(id); }
+});
+await app.RunAsync();
+
+static Task Send(WebSocket socket, string json, CancellationToken ct) =>
+    socket.SendAsync(Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct);
+
+sealed class TelemetryStore
+{
+    private readonly ConcurrentDictionary<int, JsonElement> _players = new();
+    private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
+    private long _records;
+    private readonly object _historyLock = new();
+    private readonly Dictionary<int, List<EconomySample>> _history = new();
+    private const int MaxHistory = 300;
+    public Dictionary<int, object[]> HistorySnapshot()
+    {
+        lock (_historyLock) return _history.ToDictionary(p => p.Key, p => p.Value.Select(s => (object)new { time = s.Time, massIncome = s.MassIncome, massSpent = s.MassSpent, energyIncome = s.EnergyIncome, energySpent = s.EnergySpent, massStored = s.MassStored, energyStored = s.EnergyStored }).ToArray());
+    }
+    public int Count => _players.Count;
+    public long Records => Interlocked.Read(ref _records);
+    public DateTimeOffset? LastUpdateUtc { get; private set; }
+    public string? Source { get; set; }
+    public JsonElement[] Snapshot() => _players.OrderBy(p => p.Key).Select(p => p.Value).ToArray();
+    public void Update(JsonElement record)
+    {
+        if (!record.TryGetProperty("armyId", out var id) || !id.TryGetInt32(out int armyId)) return;
+        if (!record.TryGetProperty("version", out var version) || !version.TryGetInt32(out int v) || v != 2) return;
+        var copy = record.Clone();
+        _players[armyId] = copy;
+        Interlocked.Increment(ref _records);
+        LastUpdateUtc = DateTimeOffset.UtcNow;
+        if (EconomySample.TryFrom(copy, out var sample))
+        {
+            lock (_historyLock)
+            {
+                if (!_history.TryGetValue(armyId, out var points)) _history[armyId] = points = new();
+                if (points.Count > 0 && sample.Time < points[^1].Time) points.Clear();
+                if (points.Count == 0 || sample.Time > points[^1].Time)
+                {
+                    points.Add(sample);
+                    if (points.Count > MaxHistory) points.RemoveAt(0);
+                }
+            }
+        }
+        var message = JsonSerializer.Serialize(new { type = "player", player = copy });
+        foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
+    }
+    public void Reset()
+    {
+        _players.Clear();
+        lock (_historyLock) _history.Clear();
+        Interlocked.Exchange(ref _records, 0);
+        LastUpdateUtc = null;
+        var message = JsonSerializer.Serialize(new { type = "snapshot", players = Array.Empty<JsonElement>(), history = HistorySnapshot(), source = Source });
+        foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
+    }
+    public (Guid, ChannelReader<string>) Subscribe()
+    {
+        var id = Guid.NewGuid();
+        var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(256)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest, SingleReader = true, SingleWriter = false
+        });
+        _clients[id] = channel;
+        return (id, channel.Reader);
+    }
+    public void Unsubscribe(Guid id)
+    {
+        if (_clients.TryRemove(id, out var channel)) channel.Writer.TryComplete();
+    }
+}
+
+sealed record EconomySample(double Time, double MassIncome, double MassSpent, double EnergyIncome, double EnergySpent, double MassStored, double EnergyStored)
+{
+    public static bool TryFrom(JsonElement item, out EconomySample sample)
+    {
+        sample = default!;
+        double Read(string key) => item.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var v) ? v : 0;
+        if (!item.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var t)) return false;
+        sample = new EconomySample(t, Read("massIncome"), Read("massSpent"), Read("energyIncome"), Read("energySpent"), Read("massStored"), Read("energyStored"));
+        return true;
+    }
+}
+
+sealed class LogTailService(IConfiguration configuration, TelemetryStore store, ILogger<LogTailService> logger) : BackgroundService
+{
+    private const string Prefix = "[FAFCASTER:PLAYER] ";
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var explicitPath = configuration["log"];
+        var logsDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Forged Alliance Forever", "logs");
+        string? path = null;
+        logger.LogInformation(string.IsNullOrWhiteSpace(explicitPath)
+            ? "Auto-detecting newest replay_*.log in {Directory}"
+            : "Watching explicitly selected replay log", logsDirectory);
+        long position = 0;
+        string pending = "";
+        DateTime lastWrite = DateTime.MinValue;
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                // An explicit --log keeps the original fixed-file behaviour.
+                // Otherwise, switch when a newer replay log is created or modified.
+                string? candidate = !string.IsNullOrWhiteSpace(explicitPath)
+                    ? Path.GetFullPath(explicitPath)
+                    : FindLatestReplay(logsDirectory);
+                if (!string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
+                {
+                    path = candidate;
+                    position = 0;
+                    pending = "";
+                    lastWrite = DateTime.MinValue;
+                    store.Source = path;
+                    store.Reset();
+                    if (path is not null) logger.LogInformation("Watching replay log {Path}", path);
+                }
+                if (path is not null && File.Exists(path))
+                {
+                    var info = new FileInfo(path);
+                    if (info.Length < position || info.LastWriteTimeUtc < lastWrite)
+                    {
+                        position = 0;
+                        pending = "";
+                        store.Reset();
+                    }
+                    lastWrite = info.LastWriteTimeUtc;
+                    using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    stream.Seek(position, SeekOrigin.Begin);
+                    using var memory = new MemoryStream();
+                    await stream.CopyToAsync(memory, stoppingToken);
+                    position = stream.Position;
+                    if (memory.Length > 0)
+                    {
+                        pending += Encoding.UTF8.GetString(memory.ToArray());
+                        int end;
+                        while ((end = pending.IndexOf('\n')) >= 0)
+                        {
+                            var line = pending[..end].TrimEnd('\r');
+                            pending = pending[(end + 1)..];
+                            var marker = line.IndexOf(Prefix, StringComparison.Ordinal);
+                            if (marker < 0) continue;
+                            var json = line[(marker + Prefix.Length)..].Trim();
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(json);
+                                if (doc.RootElement.ValueKind == JsonValueKind.Object)
+                                    store.Update(doc.RootElement);
+                            }
+                            catch (JsonException ex) { logger.LogWarning("Invalid telemetry JSON: {Error}", ex.Message); }
+                        }
+                        if (pending.Length > 1_000_000)
+                        {
+                            logger.LogWarning("Dropping oversized incomplete log line");
+                            pending = "";
+                        }
+                    }
+                }
+            }
+            catch (IOException ex) { logger.LogWarning("Log temporarily unavailable: {Error}", ex.Message); }
+            catch (UnauthorizedAccessException ex) { logger.LogWarning("Cannot read log: {Error}", ex.Message); }
+            await Task.Delay(500, stoppingToken);
+        }
+    }
+    private static string? FindLatestReplay(string directory)
+    {
+        if (!Directory.Exists(directory)) return null;
+        return Directory.EnumerateFiles(directory, "replay_*.log", SearchOption.TopDirectoryOnly)
+            .Select(path => new FileInfo(path))
+            .OrderByDescending(info => info.LastWriteTimeUtc)
+            .ThenByDescending(info => info.CreationTimeUtc)
+            .Select(info => info.FullName)
+            .FirstOrDefault();
+    }
+
+}
