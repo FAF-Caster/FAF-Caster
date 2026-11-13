@@ -31,6 +31,28 @@ jobs:
       - name: Publish Windows desktop and Bridge
         shell: pwsh
         run: ./scripts/publish-desktop.ps1
+      - name: Verify tagged release version and stable branch
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $tagVersion = '${{ github.ref_name }}'.TrimStart('v')
+          if ($tagVersion -notmatch '^\\d{2}\\.\\d{2}\\.\\d+
+        shell: pwsh
+        run: Compress-Archive -Path artifacts/FAF-Caster-Desktop -DestinationPath artifacts/FAF-Caster-Desktop-win-x64.zip -Force
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAF-Caster-Desktop-win-x64
+          path: artifacts/FAF-Caster-Desktop-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+) { throw "Invalid release tag format: $tagVersion" }
+          [xml]$project = Get-Content FAF.Caster.Desktop/FAF.Caster.Desktop.csproj
+          $projectVersion = $project.Project.PropertyGroup.Version
+          if ($tagVersion -ne $projectVersion) { throw "Tag version $tagVersion does not match desktop version $projectVersion" }
+          git fetch origin main
+          git merge-base --is-ancestor HEAD origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'Release tags must point to commits on main.' }
       - name: Package portable desktop
         shell: pwsh
         run: Compress-Archive -Path artifacts/FAF-Caster-Desktop -DestinationPath artifacts/FAF-Caster-Desktop-win-x64.zip -Force
@@ -41,3 +63,24 @@ jobs:
           path: artifacts/FAF-Caster-Desktop-win-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-windows
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download validated build
+        uses: actions/download-artifact@v4
+        with:
+          name: FAF-Caster-Desktop-win-x64
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" FAF-Caster-Desktop-win-x64.zip --draft --verify-tag --title "FAF Caster $TAG" --generate-notes
