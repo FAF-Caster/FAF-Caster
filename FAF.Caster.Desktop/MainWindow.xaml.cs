@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     private string? _bridgeError;
     private readonly string _logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FAF-Caster", "bridge.log");
     private string _page = "/local";
+    private bool _showHome = true;
     public MainWindow()
     {
         InitializeComponent();
@@ -70,6 +71,7 @@ public partial class MainWindow : Window
         };
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("Open FAF Caster", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
+        menu.Items.Add("Home", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); ShowHome(); }));
         menu.Items.Add("Companion", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); Navigate("/local"); }));
         menu.Items.Add("Overlay Studio", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); Navigate("/local/studio"); }));
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
@@ -131,7 +133,7 @@ public partial class MainWindow : Window
             CheckGameProcess();
             await CheckHealthAsync();
         }
-        catch (Exception ex) { Status.Text = "Startup failed: " + ex.Message; }
+        catch (Exception ex) { Status.Text = "Startup failed: " + ex.Message; SplashStatus.Text = "Startup failed: " + ex.Message; }
     }
     private void StartBridgeIfNeeded()
     {
@@ -183,12 +185,14 @@ public partial class MainWindow : Window
             BridgeIndicator.Fill = Brushes.MediumSeaGreen;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge connected";
             _bridgeConnected = true;
-            if (_browserReady && Browser.Source?.AbsolutePath != _page)
+            SplashScreen.Visibility = Visibility.Collapsed;
+            if (!_showHome && _browserReady && Browser.Source?.AbsolutePath != _page)
                 Browser.CoreWebView2.Navigate(BaseUrl + _page);
         }
         catch
         {
             _bridgeConnected = false;
+            SplashStatus.Text = "Waiting for the local Bridge…";
             BridgeIndicator.Fill = Brushes.IndianRed;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge disconnected";
             if (_bridge is { HasExited: true })
@@ -198,9 +202,25 @@ public partial class MainWindow : Window
         }
         finally { _checkingHealth = false; }
     }
+    private void DismissSplash_Click(object sender, RoutedEventArgs e)
+    {
+        SplashScreen.Visibility = Visibility.Collapsed;
+    }
+    private void Home_Click(object sender, RoutedEventArgs e) => ShowHome();
+    private void ShowHome()
+    {
+        _showHome = true;
+        HomePage.Visibility = Visibility.Visible;
+        Browser.Visibility = Visibility.Collapsed;
+        SplashScreen.Visibility = Visibility.Collapsed;
+    }
     private void Navigate(string path)
     {
         _page = path;
+        _showHome = false;
+        HomePage.Visibility = Visibility.Collapsed;
+        Browser.Visibility = Visibility.Visible;
+        SplashScreen.Visibility = Visibility.Collapsed;
         if (_browserReady && _bridgeConnected) Browser.CoreWebView2.Navigate(BaseUrl + path);
     }
     private void Companion_Click(object sender, RoutedEventArgs e) => Navigate("/local");
