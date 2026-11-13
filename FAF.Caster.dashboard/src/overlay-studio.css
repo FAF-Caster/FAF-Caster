@@ -73,3 +73,24 @@
 
 /* Editor and OBS share identical full-frame percentage coordinates. */
 .os-canvas-safe{inset:0!important}
+
+
+/* Stage 4.4 telemetry widgets and presets */
+.os-preset-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.os-preset-grid button{border:1px solid #34566b;background:#1b3446;border-radius:7px;color:#d3edf4;padding:10px 7px;cursor:pointer;font-size:11px}
+.os-preset-grid button:hover{background:#28516a}
+.os-player-filter{max-height:130px;overflow-y:auto;border:1px solid #33475b;border-radius:7px;padding:7px;margin:7px 0}
+.os-player-filter label{display:flex;align-items:center;gap:7px;margin:4px 0;font-size:11px}
+.os-player-filter input{width:auto!important;margin:0!important}
+.os-team-heading{display:flex;justify-content:space-between;font-size:10px;color:#68d5d7;font-weight:800;letter-spacing:.07em;margin:8px 0 3px}
+.os-team-heading span{color:#dceefa}
+.os-player-identity{display:flex;align-items:center;gap:5px;min-width:0;flex:1}
+.os-player-identity small{font-size:9px;color:#91a8ba}
+.os-faction-dot{width:7px;height:7px;flex-shrink:0;border-radius:50%}
+.os-score-value{font-weight:750}
+.os-defeated{opacity:.48}
+.os-economy-player{border-bottom:1px solid #34485b;padding:5px 0}
+.os-economy-player>strong{font-size:11px;display:block;margin-bottom:3px}
+.os-economy-resource{display:flex;justify-content:space-between;gap:5px;color:#c8dce9;font-size:10px;padding:2px 0}
+.os-economy-resource span:first-child{color:#66d4d6;font-weight:800}
+.os-economy-resource span:last-child{color:#8ca4b6}
