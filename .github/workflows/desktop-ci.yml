@@ -77,6 +77,28 @@ jobs:
       - name: Package portable desktop
         shell: pwsh
         run: Compress-Archive -Path artifacts/FAF-Caster-Desktop -DestinationPath artifacts/FAF-Caster-Desktop-win-x64.zip -Force
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+      - name: Build Windows installer
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          $version = if ($env:RELEASE_VERSION) { $env:RELEASE_VERSION } else { '0.0.0' }
+          $compiler = "${env:ProgramFiles(x86)}\\Inno Setup 6\\ISCC.exe"
+          if (-not (Test-Path $compiler)) { throw "Inno Setup compiler not found: $compiler" }
+          & $compiler "/DMyAppVersion=$version" "installer/FAF-Caster.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed" }
+          $setup = "artifacts/FAF-Caster-Setup-v$version-win-x64.exe"
+          if (-not (Test-Path $setup)) { throw "Missing installer: $setup" }
+      - name: Upload installer build
+        uses: actions/upload-artifact@v4
+        with:
+          name: FAF-Caster-Setup-win-x64
+          path: artifacts/FAF-Caster-Setup-v*-win-x64.exe
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload portable build
         uses: actions/upload-artifact@v4
         with:
@@ -98,6 +120,9 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: FAF-Caster-Desktop-win-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: FAF-Caster-Setup-win-x64
       - name: Create release notes and tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -113,16 +138,16 @@ jobs:
             echo "Tag $TAG already exists; refusing overwrite." >&2
             exit 1
           fi
-          mv FAF-Caster-Desktop-win-x64.zip "FAF-Caster-Desktop-${TAG}-win-x64.zip"
+          mv FAF-Caster-Desktop-win-x64.zip "FAF-Caster-Desktop-${TAG}-win-x64.zip"\n          installer="FAF-Caster-Setup-${TAG}-win-x64.exe"\n          test -f "$installer" || { echo "Missing installer: $installer" >&2; exit 1; }
           gh api "repos/${GH_REPO}/releases/generate-notes" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq '.body' > generated-changelog.md
           {
             echo "## Installation"
             echo
-            echo "1. Download \`FAF-Caster-Desktop-${TAG}-win-x64.zip\`."
-            echo "2. Extract the ZIP and run \`FAF.Caster.Desktop.exe\`."
+            echo "1. Download \`FAF-Caster-Setup-${TAG}-win-x64.exe\` and run the installer."
+            echo "2. Launch FAF Caster from the Start menu (or optional desktop shortcut)."
             echo "3. Install and enable the matching [FAF Caster Bridge UI mod](https://github.com/FAF-Caster/faf-caster-ui-mod/releases)."
             echo
-            echo "Portable Windows x64 build containing the desktop app, telemetry Bridge, and dashboard."
+            echo "The installer includes the desktop app, telemetry Bridge, and dashboard. A portable ZIP is also available for advanced users."
             echo
             echo "## Changes"
             echo
@@ -130,4 +155,4 @@ jobs:
           } > release-notes.md
           [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]] || { echo 'Main advanced; refusing stale tag.' >&2; exit 1; }
           gh api "repos/${GH_REPO}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$GITHUB_SHA" >/dev/null
-          gh release create "$TAG" "FAF-Caster-Desktop-${TAG}-win-x64.zip" --verify-tag --title "FAF Caster Desktop $TAG" --notes-file release-notes.md
+          gh release create "$TAG" "$installer" "FAF-Caster-Desktop-${TAG}-win-x64.zip" --verify-tag --title "FAF Caster Desktop $TAG" --notes-file release-notes.md
