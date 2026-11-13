@@ -112,7 +112,10 @@ function App(){
   let active=true;
   let socket:WebSocket|null=null;
   let retry:number|undefined;
+  let loadSequence=0;
+  let currentGeneration:number|null=null;
   const load=async()=>{
+   const sequence=++loadSequence;
    try{
     const [healthResponse,playersResponse,historyResponse,metadataResponse]=await Promise.all([
      fetch('/local-api/health'),fetch('/local-api/players'),fetch('/local-api/history'),fetch('/local-api/metadata')
@@ -122,7 +125,17 @@ function App(){
     const nextPlayers=await playersResponse.json() as Player[];
     const nextHistory=await historyResponse.json() as Record<number,EconomyPoint[]>;
     const nextMetadata=metadataResponse.ok?await metadataResponse.json() as MatchMetadata:null;
-    if(!active)return;
+    // A match may change while four separate endpoints are being fetched.
+    // Re-check generation before applying a potentially mixed set of snapshots.
+    const verifyResponse=await fetch('/local-api/session');
+    if(!verifyResponse.ok)throw Error('Local Bridge session unavailable');
+    const verifiedSession=await verifyResponse.json() as LocalSession;
+    if(!active||sequence!==loadSequence||verifiedSession.generation!==nextHealth.session?.generation)return;
+    if(currentGeneration!==null&&nextHealth.session?.generation!==currentGeneration){
+     // A newer WebSocket snapshot may already have switched the UI.
+     if(nextHealth.session?.generation!==verifiedSession.generation)return;
+    }
+    currentGeneration=verifiedSession.generation;
     setHealth(previous=>{
      if(previous?.session?.generation!==nextHealth.session?.generation){
       setSelected(null);setChartArmy(null);setMetadata(null);setLastMessage(null);
@@ -132,7 +145,7 @@ function App(){
     setPlayers(nextPlayers);setHistory(nextHistory);setMetadata(nextMetadata);
     if(nextHealth.lastUpdateUtc)setLastMessage(Date.parse(nextHealth.lastUpdateUtc));
     setError('');
-   }catch(e){if(active){setConnection('disconnected');setError(e instanceof Error?e.message:'Local Bridge unavailable');}}
+   }catch(e){if(active&&sequence===loadSequence){setError(e instanceof Error?e.message:'Local Bridge unavailable');}}
   };
   const connect=()=>{
    if(!active)return;
@@ -145,10 +158,14 @@ function App(){
     try{
      const data=JSON.parse(event.data);
      if(data.type==='snapshot'){
+      loadSequence++;
+      if(typeof data.session?.generation==='number')currentGeneration=data.session.generation;
+      setHealth(previous=>previous?{...previous,session:data.session??previous.session}:previous);
       setPlayers(data.players??[]);setHistory(data.history??{});
       setMetadata(null);setSelected(null);setChartArmy(null);setLastMessage(null);
       void load();
      }else if(data.type==='player'&&data.player){
+      if(typeof data.generation==='number'&&currentGeneration!==null&&data.generation!==currentGeneration)return;
       const p=data.player as Player;
       setPlayers(prev=>[...prev.filter(item=>item.armyId!==p.armyId),p]);
       setHistory(prev=>{
