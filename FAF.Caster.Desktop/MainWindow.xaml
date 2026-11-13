@@ -21,14 +21,24 @@
     </StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
      <Button Content="Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
-     <Button Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
-     <Button Content="OBS overlay ↗" Click="Obs_Click" Style="{StaticResource NavButton}"/>
+     <Button Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}"/>
     </StackPanel>
-    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-     <TextBlock x:Name="GameStatus" Text="FAF: checking" Foreground="#C4D7E5" VerticalAlignment="Center" Margin="0,0,16,0"/>
-     <TextBlock x:Name="Status" Text="Bridge starting…" Foreground="#5DE2DC" VerticalAlignment="Center" Margin="0,0,14,0"/>
-     <Button Content="Reconnect" Click="Retry_Click" Style="{StaticResource NavButton}"/>
+
+   </Grid>
+  </Border>
+  <Border DockPanel.Dock="Bottom" Background="#142537" BorderBrush="#294054" BorderThickness="0,1,0,0" Padding="14,8">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+     <Ellipse x:Name="GameIndicator" Width="9" Height="9" Fill="#8095A5" Margin="0,0,8,0"/>
+     <TextBlock x:Name="GameStatus" Text="FAF: checking" Foreground="#C4D7E5" VerticalAlignment="Center"/>
     </StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+     <Ellipse x:Name="BridgeIndicator" Width="9" Height="9" Fill="#E6B15E" Margin="0,0,8,0"/>
+     <TextBlock x:Name="Status" Text="Bridge starting…" Foreground="#C4D7E5" VerticalAlignment="Center"/>
+    </StackPanel>
+    <TextBlock Grid.Column="2" Text="FAF Caster Desktop" Foreground="#70899D" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0" FontSize="11"/>
+    <Button Grid.Column="3" Content="Reconnect" Click="Retry_Click" Style="{StaticResource NavButton}"/>
    </Grid>
   </Border>
   <wv2:WebView2 x:Name="Browser"/>
