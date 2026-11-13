@@ -71,3 +71,7 @@
 .caster-storage-mass .caster-storage-track i{background:#32e79a}
 .caster-storage-energy .caster-storage-track i{background:#ffb547}
 .caster-storage-track.capacity-unknown{background:repeating-linear-gradient(90deg,#243e51 0 8px,#1b3142 8px 12px)}
+
+/* Relative storage bars are filled using the largest observed storage amount until capacity is available. */
+.caster-storage-track.relative-storage{background:#213a4e}
+.caster-storage-track.relative-storage i{opacity:.9}
