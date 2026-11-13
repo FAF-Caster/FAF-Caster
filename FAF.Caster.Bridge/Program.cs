@@ -131,6 +131,9 @@ sealed class TelemetryStore
         if (!record.TryGetProperty("gameTime", out var gameTime) ||
             gameTime.ValueKind != JsonValueKind.Number || !gameTime.TryGetDouble(out var seconds) ||
             !double.IsFinite(seconds) || seconds < 0) return;
+        // Stage 3: defeat must be explicitly reported, never inferred from zero units or missing updates.
+        if (record.TryGetProperty("defeated", out var defeated) &&
+            defeated.ValueKind != JsonValueKind.True && defeated.ValueKind != JsonValueKind.False) return;
         var copy = record.Clone();
         _players[armyId] = copy;
         Interlocked.Increment(ref _records);
