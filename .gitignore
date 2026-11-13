@@ -33,3 +33,5 @@ logs/
 # IDE
 .idea/
 .vscode/
+# Generated portable release builds
+artifacts/
