@@ -33,3 +33,6 @@ logs/
 # IDE
 .idea/
 .vscode/
+
+# Github Build
+artifacts
