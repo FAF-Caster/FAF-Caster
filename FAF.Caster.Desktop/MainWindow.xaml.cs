@@ -5,7 +5,7 @@ using System.Windows.Interop;
 using System.Net.Http;
 using System.ComponentModel;
 using System.Drawing;
-using System.Windows.Media;
+using Brushes = System.Windows.Media.Brushes;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
