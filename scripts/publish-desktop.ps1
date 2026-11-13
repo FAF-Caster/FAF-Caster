@@ -27,7 +27,24 @@ try {
   npm run build
   if ($LASTEXITCODE -ne 0) { throw "Dashboard build failed" }
 } finally { Pop-Location }
-dotnet publish (Join-Path $root "FAF.Caster.Desktop/FAF.Caster.Desktop.csproj") -c $Configuration -r $Runtime --self-contained true -o $out
+$versionArgs = @()
+if ($env:FAF_CASTER_RELEASE_VERSION) {
+  if ($env:FAF_CASTER_RELEASE_VERSION -notmatch '^\d{2}\.\d{2}\.\d+
+if ($LASTEXITCODE -ne 0) { throw "Desktop publish failed" }
+$bridgeOut = Join-Path $out "bridge"
+dotnet publish (Join-Path $root "FAF.Caster.Bridge") -c $Configuration -r $Runtime --self-contained true -o $bridgeOut @versionArgs
+if ($LASTEXITCODE -ne 0) { throw "Bridge publish failed" }
+Copy-Item (Join-Path $root "FAF.Caster.dashboard/dist") (Join-Path $out "dashboard") -Recurse -Force
+Write-Host "Desktop build ready at $out"
+Write-Host "Run FAF.Caster.Desktop.exe from that folder."
+) {
+    throw "Invalid FAF_CASTER_RELEASE_VERSION: $env:FAF_CASTER_RELEASE_VERSION"
+  }
+  $v = $env:FAF_CASTER_RELEASE_VERSION
+  $versionArgs = @("-p:Version=$v", "-p:AssemblyVersion=$v.0", "-p:FileVersion=$v.0")
+  Write-Host "Publishing stable version $v"
+}
+dotnet publish (Join-Path $root "FAF.Caster.Desktop/FAF.Caster.Desktop.csproj") -c $Configuration -r $Runtime --self-contained true -o $out @versionArgs
 if ($LASTEXITCODE -ne 0) { throw "Desktop publish failed" }
 $bridgeOut = Join-Path $out "bridge"
 dotnet publish (Join-Path $root "FAF.Caster.Bridge") -c $Configuration -r $Runtime --self-contained true -o $bridgeOut
