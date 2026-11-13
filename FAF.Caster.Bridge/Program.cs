@@ -1,3 +1,4 @@
+using FAFCaster.Bridge;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
@@ -8,6 +9,11 @@ using System.Threading.Channels;
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5077");
 builder.Services.AddSingleton<TelemetryStore>();
+builder.Services.AddHttpClient<FafApiClient>(client =>
+{
+    client.BaseAddress = new Uri(FafApiClient.DefaultBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(8);
+});
 builder.Services.AddSingleton<OverlayConfigurationStore>();
 builder.Services.AddHostedService<LogTailService>();
 var app = builder.Build();
@@ -71,6 +77,11 @@ app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
     status = "ok", players = store.Count, records = store.Records,
     lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
 }));
+// Explicit read-only probe; no token is accepted or persisted.
+app.MapGet("/local-api/faf/game/{gameId:long}", async (long gameId, FafApiClient faf, CancellationToken ct) =>
+    Results.Json(await faf.ProbeGameAsync(gameId, ct)));
+app.MapGet("/api/faf/game/{gameId:long}", async (long gameId, FafApiClient faf, CancellationToken ct) =>
+    Results.Json(await faf.ProbeGameAsync(gameId, ct)));
 app.MapGet("/local-api/health", (TelemetryStore store) => Results.Ok(new {
     status = "ok", players = store.Count, records = store.Records,
     lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
