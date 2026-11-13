@@ -48,8 +48,8 @@ public partial class MainWindow : Window
     }
     private void StartBridgeIfNeeded()
     {
-        // Deployment: publish output contains bridge/FAF.Caster.Bridge.exe and dashboard/index.html.
-        var bridgeExe = Path.Combine(AppContext.BaseDirectory, "bridge", "FAF.Caster.Bridge.exe");
+        // Deployment: publish output contains bridge/FAFCaster.Bridge.exe and dashboard/index.html.
+        var bridgeExe = Path.Combine(AppContext.BaseDirectory, "bridge", "FAFCaster.Bridge.exe");
         var dashboard = Path.Combine(AppContext.BaseDirectory, "dashboard");
         if (!File.Exists(bridgeExe))
         {
