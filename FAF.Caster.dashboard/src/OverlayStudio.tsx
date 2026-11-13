@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import type {PointerEvent as ReactPointerEvent} from 'react';
+import type {PointerEvent as ReactPointerEvent, CSSProperties} from 'react';
 import type {CasterPlayer} from './LocalDashboard';
 import './overlay-studio.css';
 type Mode='caster'|'tournament';
@@ -51,7 +51,7 @@ function Scene({slot,players,editing,selectedWidget,onSelect,onUpdate,grid}:{slo
   if(d.mode==='move')onUpdate?.(d.id,{x:clamp(snap(d.initial.x+dx),0,100-d.initial.w),y:clamp(snap(d.initial.y+dy),0,100-d.initial.h)});
   else onUpdate?.(d.id,{w:clamp(snap(d.initial.w+dx),8,100-d.initial.x),h:clamp(snap(d.initial.h+dy),7,100-d.initial.y)});
  };
- return <div ref={ref} className={'os-scene '+(editing?'os-scene-edit ':'')+(grid&&editing?'os-scene-grid':'')} style={{'--os-accent':slot.accent} as React.CSSProperties}>
+ return <div ref={ref} className={'os-scene '+(editing?'os-scene-edit ':'')+(grid&&editing?'os-scene-grid':'')} style={{'--os-accent':slot.accent} as CSSProperties}>
  {widgets.filter(w=>w.visible).map(w=><div key={w.id} className={'os-widget '+(editing&&selectedWidget===w.id?'os-widget-selected':'')} style={{left:w.x+'%',top:w.y+'%',width:w.w+'%',height:w.h+'%'}} onPointerDown={e=>down(e,w,'move')} onPointerMove={move} onPointerUp={()=>{drag.current=null}} onPointerCancel={()=>{drag.current=null}}>
  {editing&&<span className="os-widget-tag">{widgetLabels[w.kind]}</span>}<WidgetContent widget={w} slot={slot} players={players}/>{editing&&selectedWidget===w.id&&<div className="os-widget-resizer" onPointerDown={e=>down(e,w,'resize')} onPointerMove={move} onPointerUp={()=>{drag.current=null}} onPointerCancel={()=>{drag.current=null}}/>}
  </div>)}
@@ -63,7 +63,7 @@ function Preview({slot,players}:{slot:Slot;players:CasterPlayer[]}){
  const ordered=[...players].sort((a,b)=>b.score-a.score).slice(0,slot.mode==='tournament'?4:2);
  const time=Math.max(0,...ordered.map(p=>p.gameTime||0));
  const clock=`${Math.floor(time/60).toString().padStart(2,'0')}:${Math.floor(time%60).toString().padStart(2,'0')}`;
- return <div className="os-preview" style={{'--os-accent':slot.accent,'--os-scale':slot.scale/100} as React.CSSProperties}><div className="os-preview-inner">
+ return <div className="os-preview" style={{'--os-accent':slot.accent,'--os-scale':slot.scale/100} as CSSProperties}><div className="os-preview-inner">
   <div className="os-preview-header"><strong>{slot.mode==='tournament'?slot.tournamentName:'FAF CASTER'}</strong>{slot.showTimer&&<span>{clock}</span>}</div>
   {slot.mode==='tournament'&&slot.showTeams&&<div className="os-tournament">{slot.round} <strong>{slot.score}</strong></div>}
   {slot.layout==='match'&&<div className="os-placeholder">MATCH OVERVIEW · {ordered.length} PLAYERS</div>}
