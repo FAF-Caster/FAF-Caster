@@ -3,8 +3,9 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>true</ImplicitUsings>
     <AssemblyName>FAF.Caster.Desktop</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
