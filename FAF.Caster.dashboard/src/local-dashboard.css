@@ -52,3 +52,9 @@
 /* Resource semantics: mass is green; energy is amber/yellow. Team shades vary within each resource. */
 .caster-resource-mass h4,.caster-resource-mass .caster-panel-head h3{color:#32e79a}
 .caster-resource-energy h4,.caster-resource-energy .caster-panel-head h3{color:#ffb547}
+
+/* Visually separate players by detected team, without a redundant Team column. */
+.caster-table .caster-team-divider th{padding:13px 16px 10px;text-align:left;background:#142b40;border-top:2px solid #2a4b64;border-bottom:1px solid #31536b;white-space:nowrap}
+.caster-team-divider th strong{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#e9f6ff}
+.caster-team-divider th span:last-child{margin-left:12px;color:#91aec2;font-size:11px;font-weight:500}
+.caster-team-divider-mark{display:inline-block;width:5px;height:16px;border-radius:3px;vertical-align:middle;margin-right:11px}
