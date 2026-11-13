@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.FileProviders;
 using System.Threading.Channels;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,14 +11,46 @@ builder.Services.AddSingleton<TelemetryStore>();
 builder.Services.AddHostedService<LogTailService>();
 var app = builder.Build();
 app.UseWebSockets();
+// Serve a built React dashboard on the same loopback origin as the Bridge.
+// In development Vite continues to proxy /local-api and /local-ws.
+var dashboardPath = builder.Configuration["dashboard"];
+if (string.IsNullOrWhiteSpace(dashboardPath))
+    dashboardPath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "FAF.Caster.dashboard", "dist"));
+else
+    dashboardPath = Path.GetFullPath(dashboardPath);
+if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "index.html")))
+{
+    var files = new PhysicalFileProvider(dashboardPath);
+    app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
+    app.MapGet("/", () => Results.Redirect("/local"));
+    app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+}
+else
+{
+    app.Logger.LogInformation("Built dashboard not found at {Path}; run npm run build in FAF.Caster.dashboard", dashboardPath);
+}
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,
-    lastUpdateUtc = store.LastUpdateUtc, source = store.Source
+    lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
 }));
+app.MapGet("/local-api/health", (TelemetryStore store) => Results.Ok(new {
+    status = "ok", players = store.Count, records = store.Records,
+    lastUpdateUtc = store.LastUpdateUtc, source = store.Source, session = store.SessionSnapshot()
+}));
+app.MapGet("/local-api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
+app.MapGet("/local-api/metadata", (TelemetryStore store) => Results.Ok(store.MetadataSnapshot()));
+app.MapGet("/api/metadata", (TelemetryStore store) => Results.Ok(store.MetadataSnapshot()));
+app.MapGet("/local-api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
+app.MapGet("/local-api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
+app.MapGet("/api/session", (TelemetryStore store) => Results.Ok(store.SessionSnapshot()));
 app.MapGet("/api/players", (TelemetryStore store) => Results.Ok(store.Snapshot()));
 app.MapGet("/api/history", (TelemetryStore store) => Results.Ok(store.HistorySnapshot()));
-app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
+app.Map("/ws", StreamTelemetry);
+app.Map("/local-ws", StreamTelemetry);
+async Task StreamTelemetry(HttpContext context, TelemetryStore store)
 {
     if (!context.WebSockets.IsWebSocketRequest)
     {
@@ -28,7 +61,7 @@ app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
     var (id, updates) = store.Subscribe();
     try
     {
-        await Send(socket, JsonSerializer.Serialize(new { type = "snapshot", players = store.Snapshot(), history = store.HistorySnapshot(), source = store.Source }), context.RequestAborted);
+        await Send(socket, JsonSerializer.Serialize(new { type = "snapshot", players = store.Snapshot(), history = store.HistorySnapshot(), source = store.Source, session = store.SessionSnapshot() }), context.RequestAborted);
         await foreach (var message in updates.ReadAllAsync(context.RequestAborted))
         {
             if (socket.State != WebSocketState.Open) break;
@@ -38,7 +71,7 @@ app.Map("/ws", async (HttpContext context, TelemetryStore store) =>
     catch (OperationCanceledException) { }
     catch (WebSocketException) { }
     finally { store.Unsubscribe(id); }
-});
+}
 await app.RunAsync();
 
 static Task Send(WebSocket socket, string json, CancellationToken ct) =>
@@ -47,6 +80,10 @@ static Task Send(WebSocket socket, string json, CancellationToken ct) =>
 sealed class TelemetryStore
 {
     private readonly ConcurrentDictionary<int, JsonElement> _players = new();
+    private LocalMatchMetadata _metadata = new();
+    private readonly object _metadataLock = new();
+    public object MetadataSnapshot() { lock(_metadataLock) return _metadata.Snapshot(); }
+    public void ReadMetadata(string line) { lock(_metadataLock) _metadata.Read(line); }
     private readonly ConcurrentDictionary<Guid, Channel<string>> _clients = new();
     private long _records;
     private readonly object _historyLock = new();
@@ -59,12 +96,41 @@ sealed class TelemetryStore
     public int Count => _players.Count;
     public long Records => Interlocked.Read(ref _records);
     public DateTimeOffset? LastUpdateUtc { get; private set; }
-    public string? Source { get; set; }
+    private string? _source;
+    private string? _sessionId;
+    private long _generation;
+    public string? Source => _source;
+    public object SessionSnapshot()
+    {
+        var updated = LastUpdateUtc;
+        var capturing = updated.HasValue && DateTimeOffset.UtcNow - updated.Value < TimeSpan.FromSeconds(15);
+        var matchId = _source is null ? null : Path.GetFileNameWithoutExtension(_source).Split('_').LastOrDefault();
+        return new { mode = "local", sessionId = _sessionId, matchId, generation = Interlocked.Read(ref _generation),
+            status = _source is null ? "waiting" : capturing ? "capturing" : Records > 0 ? "idle" : "detected",
+            source = _source, players = Count, records = Records, lastUpdateUtc = updated };
+    }
+    public void SelectSource(string? source)
+    {
+        _source = source;
+        Reset();
+    }
     public JsonElement[] Snapshot() => _players.OrderBy(p => p.Key).Select(p => p.Value).ToArray();
     public void Update(JsonElement record)
     {
-        if (!record.TryGetProperty("armyId", out var id) || !id.TryGetInt32(out int armyId)) return;
+        if (!record.TryGetProperty("armyId", out var id) || !id.TryGetInt32(out int armyId) || armyId < 1 || armyId > 1000) return;
         if (!record.TryGetProperty("version", out var version) || !version.TryGetInt32(out int v) || v != 2) return;
+        // Reject malformed or non-finite numeric telemetry before it enters player snapshots.
+        foreach (var field in new[] { "gameTime", "massIncome", "massSpent", "massStored", "massCapacity", "energyIncome", "energySpent", "energyStored", "energyCapacity", "units", "kills", "losses", "score" })
+        {
+            // Capacity and other metrics can be absent in older UI mod builds.
+            // Reject malformed values when supplied, but do not drop the entire player.
+            if (!record.TryGetProperty(field, out var value)) continue;
+            if (value.ValueKind != JsonValueKind.Number ||
+                !value.TryGetDouble(out var number) || !double.IsFinite(number)) return;
+        }
+        if (!record.TryGetProperty("gameTime", out var gameTime) ||
+            gameTime.ValueKind != JsonValueKind.Number || !gameTime.TryGetDouble(out var seconds) ||
+            !double.IsFinite(seconds) || seconds < 0) return;
         var copy = record.Clone();
         _players[armyId] = copy;
         Interlocked.Increment(ref _records);
@@ -82,16 +148,19 @@ sealed class TelemetryStore
                 }
             }
         }
-        var message = JsonSerializer.Serialize(new { type = "player", player = copy });
+        var message = JsonSerializer.Serialize(new { type = "player", player = copy, generation = Interlocked.Read(ref _generation) });
         foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
     }
     public void Reset()
     {
         _players.Clear();
+        lock(_metadataLock) _metadata = new LocalMatchMetadata();
         lock (_historyLock) _history.Clear();
         Interlocked.Exchange(ref _records, 0);
         LastUpdateUtc = null;
-        var message = JsonSerializer.Serialize(new { type = "snapshot", players = Array.Empty<JsonElement>(), history = HistorySnapshot(), source = Source });
+        _sessionId = _source is null ? null : Guid.NewGuid().ToString("N");
+        Interlocked.Increment(ref _generation);
+        var message = JsonSerializer.Serialize(new { type = "snapshot", players = Array.Empty<JsonElement>(), history = HistorySnapshot(), source = Source, session = SessionSnapshot() });
         foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
     }
     public (Guid, ChannelReader<string>) Subscribe()
@@ -116,7 +185,7 @@ sealed record EconomySample(double Time, double MassIncome, double MassSpent, do
     {
         sample = default!;
         double Read(string key) => item.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var v) ? v : 0;
-        if (!item.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var t)) return false;
+        if (!item.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var t) || !double.IsFinite(t) || t < 0) return false;
         sample = new EconomySample(t, Read("massIncome"), Read("massSpent"), Read("energyIncome"), Read("energySpent"), Read("massStored"), Read("energyStored"));
         return true;
     }
@@ -145,15 +214,14 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                 // Otherwise, use the same game/replay selection order as the Companion.
                 string? candidate = !string.IsNullOrWhiteSpace(explicitPath)
                     ? Path.GetFullPath(explicitPath)
-                    : FindLatestLog(logsDirectory);
+                    : FindLatestLog(logsDirectory, path);
                 if (!string.Equals(candidate, path, StringComparison.OrdinalIgnoreCase))
                 {
                     path = candidate;
                     position = 0;
                     pending = "";
                     lastWrite = DateTime.MinValue;
-                    store.Source = path;
-                    store.Reset();
+                    store.SelectSource(path);
                     if (path is not null) logger.LogInformation("Watching FAF log {Path}", path);
                 }
                 if (path is not null && File.Exists(path))
@@ -179,6 +247,7 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                         {
                             var line = pending[..end].TrimEnd('\r');
                             pending = pending[(end + 1)..];
+                            store.ReadMetadata(line);
                             var marker = line.IndexOf(Prefix, StringComparison.Ordinal);
                             if (marker < 0) continue;
                             var json = line[(marker + Prefix.Length)..].Trim();
@@ -203,10 +272,13 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             await Task.Delay(500, stoppingToken);
         }
     }
-    private static string? FindLatestLog(string directory)
+    // LastWriteTimeUtc is the reliable indicator of the log FAF is currently
+    // updating. CreationTimeUtc may be preserved or changed by replay copying.
+    // A small hysteresis prevents bouncing between files with near-equal times.
+    private static string? FindLatestLog(string directory, string? current)
     {
         if (!Directory.Exists(directory)) return null;
-        return Directory.EnumerateFiles(directory, "*.log", SearchOption.TopDirectoryOnly)
+        var files = Directory.EnumerateFiles(directory, "*.log", SearchOption.TopDirectoryOnly)
             .Where(path =>
             {
                 var name = Path.GetFileName(path);
@@ -214,11 +286,22 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                        name.StartsWith("replay_", StringComparison.OrdinalIgnoreCase);
             })
             .Select(path => new FileInfo(path))
-            .OrderByDescending(info => info.LastWriteTimeUtc)
-            .ThenByDescending(info => info.CreationTimeUtc)
-            .ThenByDescending(info => info.Name.StartsWith("game_", StringComparison.OrdinalIgnoreCase))
-            .Select(info => info.FullName)
-            .FirstOrDefault();
-    }
+            .ToArray();
+        if (files.Length == 0) return null;
 
+        var latest = files.OrderByDescending(f => f.LastWriteTimeUtc)
+            .ThenByDescending(f => f.CreationTimeUtc)
+            .First();
+        var selected = files.FirstOrDefault(f =>
+            string.Equals(f.FullName, current, StringComparison.OrdinalIgnoreCase));
+        if (selected is null) return latest.FullName;
+        if (string.Equals(selected.FullName, latest.FullName, StringComparison.OrdinalIgnoreCase))
+            return selected.FullName;
+
+        // Do not switch for a timestamp tie or tiny incidental touch.
+        // A newer actively written log will supersede a stale selection.
+        return latest.LastWriteTimeUtc > selected.LastWriteTimeUtc.AddSeconds(2)
+            ? latest.FullName
+            : selected.FullName;
+    }
 }
