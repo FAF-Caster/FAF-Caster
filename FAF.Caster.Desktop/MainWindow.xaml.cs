@@ -64,11 +64,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private static Icon LoadTrayIcon()
+    {
+        var uri = new Uri("pack://application:,,,/Assets/FAF-Caster.ico", UriKind.Absolute);
+        var resource = System.Windows.Application.GetResourceStream(uri)
+            ?? throw new InvalidOperationException("Embedded FAF Caster icon is missing.");
+        using (resource.Stream)
+        using (var icon = new Icon(resource.Stream))
+            return (Icon)icon.Clone();
+    }
+
     private void InitializeTray()
     {
         _tray = new System.Windows.Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Text = "FAF Caster · starting",
             Visible = true
         };
