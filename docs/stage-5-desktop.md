@@ -26,7 +26,19 @@ The script creates a portable self-contained folder (not an installer). Keep the
 ## Scope and known limitations
 
 - Stage 5.1 is a **portable desktop prototype**, not an installer.
-- It closes the Bridge when the desktop app exits; system tray and background mode are planned for Stage 5.2.
+- Stage 5.2: Closing the window hides it to the Windows notification area and keeps the Bridge running for OBS. Right-click the tray icon and choose **Exit FAF Caster** to stop the Bridge and exit.
+- The desktop header checks for the `ForgedAlliance` process every three seconds; this only indicates the game process is present, not that live telemetry is available.
 - If another process already owns port 5077, startup can conflict. Stop the other Bridge first.
 - The desktop shell has no automatic updates yet.
 - This code has not yet been built or run in a Windows desktop environment.
+
+## Stage 5.2 validation
+
+1. Launch FAF Caster; confirm Companion and Overlay Studio open.
+2. Start a game; confirm the header detects `ForgedAlliance` when running.
+3. Close the main window; confirm the tray icon remains and OBS overlay URL still loads.
+4. Double-click the tray icon to restore the application.
+5. Right-click the tray icon and choose **Exit FAF Caster**; confirm the Bridge exits and port 5077 closes.
+6. Verify startup after relaunch and no orphaned Bridge process.
+
+Stage 5.2 has been committed but not yet compiled or tested on Windows.
