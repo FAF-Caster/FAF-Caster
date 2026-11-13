@@ -6,8 +6,12 @@ if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 Push-Location (Join-Path $root "FAF.Caster.dashboard")
 try {
-  npm ci
-  if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+  if (-not (Test-Path 'node_modules')) {
+    npm ci
+    if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+  } else {
+    Write-Host 'Using existing node_modules to avoid replacing locked esbuild.exe.'
+  }
   npm run build
   if ($LASTEXITCODE -ne 0) { throw "Dashboard build failed" }
 } finally { Pop-Location }
