@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 using System.Net.Http;
 using System.ComponentModel;
 using System.Drawing;
@@ -26,11 +28,38 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => ApplyWindows11Chrome();
         Loaded += OnLoaded;
         InitializeTray();
         Closed += OnClosed;
         _healthTimer.Tick += async (_, _) => { await CheckHealthAsync(); CheckGameProcess(); };
     }
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    private void ApplyWindows11Chrome()
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17763)) return;
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero) return;
+
+        // Retain native Windows caption buttons, snapping, resize and accessibility.
+        // Dark title bar on supported Windows 10/11 builds.
+        int dark = 1;
+        int result = DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int));
+        if (result != 0)
+            DwmSetWindowAttribute(handle, 19, ref dark, sizeof(int));
+
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            // Windows 11: rounded corners and system-managed backdrop.
+            int rounded = 2;
+            DwmSetWindowAttribute(handle, 33, ref rounded, sizeof(int));
+            int backdrop = 2; // DWMSBT_MAINWINDOW (Mica)
+            DwmSetWindowAttribute(handle, 38, ref backdrop, sizeof(int));
+        }
+    }
+
     private void InitializeTray()
     {
         _tray = new System.Windows.Forms.NotifyIcon
