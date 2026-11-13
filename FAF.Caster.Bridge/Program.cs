@@ -24,17 +24,29 @@ if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "
     var files = new PhysicalFileProvider(dashboardPath);
     app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
     app.MapGet("/", () => Results.Redirect("/local"));
-    app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
-    app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
-    app.MapGet("/local/studio", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
-    app.MapGet("/local/studio/overlay/{id:int}", (int id) => id is >= 1 and <= 5 ? Results.File(Path.Combine(dashboardPath, "index.html"), "text/html") : Results.NotFound());
+    // A single route handles the dashboard's client-side pages, avoiding
+    // ambiguous /local and /local/ endpoint matches.
+    app.MapGet("/local/{**route}", (string? route) =>
+    {
+        var page = (route ?? "").Trim('/');
+        var allowed = page is "" or "overlay" or "studio" ||
+            (page.StartsWith("studio/overlay/", StringComparison.Ordinal) &&
+             int.TryParse(page["studio/overlay/".Length..], out var id) &&
+             id is >= 1 and <= 5);
+        return allowed
+            ? Results.File(Path.Combine(dashboardPath, "index.html"), "text/html")
+            : Results.NotFound();
+    });
 }
 else
 {
     app.Logger.LogInformation("Built dashboard not found at {Path}; run npm run build in FAF.Caster.dashboard", dashboardPath);
 }
+app.MapGet("/local-api/overlay-config", (OverlayConfigurationStore store) => Results.Json(store.Read()));
 app.MapGet("/api/overlay-config", (OverlayConfigurationStore store) => Results.Json(store.Read()));
-app.MapPut("/api/overlay-config", async (HttpContext context, OverlayConfigurationStore store) =>
+app.MapPut("/local-api/overlay-config", SaveOverlayConfig);
+app.MapPut("/api/overlay-config", SaveOverlayConfig);
+async Task<IResult> SaveOverlayConfig(HttpContext context, OverlayConfigurationStore store)
 {
     try
     {
@@ -53,7 +65,7 @@ app.MapPut("/api/overlay-config", async (HttpContext context, OverlayConfigurati
         return Results.Ok(new { saved = true });
     }
     catch (JsonException) { return Results.BadRequest(new { error = "Invalid JSON." }); }
-});
+}
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,

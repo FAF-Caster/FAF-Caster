@@ -130,9 +130,23 @@ public partial class MainWindow : Window
     {
         _ = FinishSplashAfterDelayAsync();
         ShowHomeBehindSplash();
+        // WebView2's default user-data folder is beside the executable, which is
+        // not writable for standard users when installed under Program Files.
+        // Start the local Bridge independently so Companion/Studio remain available
+        // even if the embedded browser cannot initialise.
+        StartBridgeIfNeeded();
+        _healthTimer.Start();
+        CheckGameProcess();
+        _ = CheckHealthAsync();
         try
         {
-            await Browser.EnsureCoreWebView2Async();
+            var userDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "FAF-Caster", "WebView2");
+            Directory.CreateDirectory(userDataFolder);
+            var environment = await CoreWebView2Environment.CreateAsync(
+                userDataFolder: userDataFolder);
+            await Browser.EnsureCoreWebView2Async(environment);
             _browserReady = true;
             Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
             Browser.CoreWebView2.NavigationStarting += (_, args) =>
@@ -143,12 +157,15 @@ public partial class MainWindow : Window
                     try { Process.Start(new ProcessStartInfo(args.Uri) { UseShellExecute = true }); } catch { }
                 }
             };
-            StartBridgeIfNeeded();
-            _healthTimer.Start();
-            CheckGameProcess();
             await CheckHealthAsync();
         }
-        catch (Exception ex) { Status.Text = "Startup failed: " + ex.Message; SplashStatus.Text = "Startup failed: " + ex.Message; }
+        catch (Exception ex)
+        {
+            _browserReady = false;
+            Status.Text = "Browser startup failed: " + ex.Message;
+            SplashStatus.Text = "Browser startup failed: " + ex.Message;
+            AppendBridgeLog("WebView2 startup failed: " + ex);
+        }
     }
     private void StartBridgeIfNeeded()
     {
