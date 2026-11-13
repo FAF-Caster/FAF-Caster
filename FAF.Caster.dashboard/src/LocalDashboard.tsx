@@ -34,7 +34,8 @@ function playerColor(p:CasterPlayer):string|undefined{
  const value=raw.trim();
  if(/^#[0-9a-f]{6}$/i.test(value))return value;
  if(/^[0-9a-f]{6}$/i.test(value))return '#'+value;
- if(/^[0-9a-f]{8}$/i.test(value))return '#'+value.slice(2); // FAF ARGB
+ if(/^#[0-9a-f]{8}$/i.test(value))return '#'+value.slice(3); // FAF #AARRGGBB
+ if(/^[0-9a-f]{8}$/i.test(value))return '#'+value.slice(2); // FAF AARRGGBB
  return undefined;
 }
 const palette=['#32e79a','#ff9b37','#60bbff','#ba90ff','#f77d96','#f4dc78'];
