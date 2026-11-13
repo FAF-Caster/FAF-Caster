@@ -1,0 +1,138 @@
+<Window x:Class="FAF.Caster.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" Title="FAF Caster" Icon="Assets/FAF-Caster.ico" Width="1300" Height="850" MinWidth="900" MinHeight="580" Background="#0B1522" FontFamily="Segoe UI Variable, Segoe UI" Closing="OnClosing">
+ <Window.Resources>
+  <Style x:Key="NavButton" TargetType="Button">
+   <Setter Property="Background" Value="#21394C"/>
+   <Setter Property="Foreground" Value="#EDF8FF"/>
+   <Setter Property="BorderBrush" Value="#385569"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="17,10"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="FontSize" Value="13"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#30546B"/><Setter TargetName="Chrome" Property="BorderBrush" Value="#54778A"/></Trigger>
+       <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#176F80"/></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.45"/></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
+  <Style x:Key="ActiveNavButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="Background" Value="#155A69"/>
+   <Setter Property="BorderBrush" Value="#5DE2DC"/>
+   <Setter Property="Foreground" Value="#FFFFFF"/>
+  </Style>
+ </Window.Resources>
+ <DockPanel>
+  <Border DockPanel.Dock="Top" Background="#142537" Padding="22,14" BorderBrush="#294054" BorderThickness="0,0,0,1">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+     <TextBlock Text="◈" FontSize="24" Foreground="#5DE2DC" Margin="0,0,10,0"/>
+     <StackPanel><TextBlock Text="FAF CASTER" FontSize="18" FontWeight="Bold" Foreground="#ECF9FF"/><TextBlock Text="DESKTOP COMPANION" FontSize="10" Foreground="#8CAAB9"/></StackPanel>
+    </StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+     <Button x:Name="HomeButton" Content="Home" Click="Home_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="CompanionButton" Content="Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="StudioButton" Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" Style="{StaticResource NavButton}"/>
+    </StackPanel>
+
+   </Grid>
+  </Border>
+  <Border DockPanel.Dock="Bottom" Background="#142537" BorderBrush="#294054" BorderThickness="0,1,0,0" Padding="18,7">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,24,0">
+     <Ellipse x:Name="GameIndicator" Width="9" Height="9" Fill="#8095A5" Margin="0,0,8,0"/>
+     <TextBlock x:Name="GameStatus" Text="FAF: checking" Foreground="#C4D7E5" VerticalAlignment="Center"/>
+    </StackPanel>
+    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+     <Ellipse x:Name="BridgeIndicator" Width="9" Height="9" Fill="#E6B15E" Margin="0,0,8,0"/>
+     <TextBlock x:Name="Status" Text="Bridge starting…" Foreground="#C4D7E5" VerticalAlignment="Center"/>
+    </StackPanel>
+    <TextBlock Grid.Column="2" Text="FAF Caster Desktop" Foreground="#70899D" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,16,0" FontSize="11"/>
+    <Button Grid.Column="3" Content="Reconnect" Click="Retry_Click" Style="{StaticResource NavButton}"/>
+   </Grid>
+  </Border>
+  <Grid>
+   <wv2:WebView2 x:Name="Browser" Visibility="Collapsed"/>
+   <ScrollViewer x:Name="HomePage" VerticalScrollBarVisibility="Auto" Background="#0B1522">
+    <StackPanel MaxWidth="960" HorizontalAlignment="Center" Margin="36,48,36,40">
+     <TextBlock Text="FAF CASTER / GETTING STARTED" Foreground="#5DE2DC" FontSize="12" FontWeight="Bold"/>
+     <TextBlock Text="Your casting control centre." Foreground="#F1F7FF" FontSize="36" FontWeight="Bold" Margin="0,14,0,12"/>
+     <TextBlock Text="FAF Caster is a local companion for Forged Alliance Forever observers and tournament casters. View available match telemetry, configure broadcast overlays in Overlay Studio, and add the resulting browser sources to OBS." Foreground="#B2C8D8" FontSize="16" TextWrapping="Wrap" LineHeight="25" Margin="0,0,0,28"/>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,18">
+      <StackPanel>
+       <TextBlock Text="REQUIRED FOR LIVE GAME DATA" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="FAF Caster UI Mod" Foreground="#F1F7FF" FontWeight="SemiBold" FontSize="22" Margin="0,8,0,8"/>
+       <TextBlock Text="Live telemetry requires the separately distributed FAF Caster UI mod to be installed and enabled in FAF. The mod download and installation instructions are not published yet." TextWrapping="Wrap" Foreground="#B2C8D8" FontSize="14"/>
+       <TextBlock Text="Mod download: TBD" Foreground="#F2C477" FontWeight="SemiBold" Margin="0,14,0,0"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22">
+      <StackPanel>
+       <TextBlock Text="START CASTING" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="1. Install and enable the FAF Caster UI mod when available.&#10;2. Start FAF and join a match as an observer.&#10;3. Open Companion to monitor the session.&#10;4. Use Overlay Studio to configure OBS browser sources." Foreground="#D4E2EC" FontSize="14" LineHeight="27" Margin="0,12,0,18"/>
+       <WrapPanel>
+        <Button Content="Open Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Open Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Documentation (coming soon)" IsEnabled="False" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+       </WrapPanel>
+       <TextBlock Text="Documentation URL: TBD  •  UI mod URL: TBD" Foreground="#8098AA" FontSize="12" Margin="0,8,0,0"/>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+   </ScrollViewer>
+   <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" Background="#0B1522" VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="820" HorizontalAlignment="Center" Margin="36,48,36,40">
+     <TextBlock Text="PREFERENCES / DIAGNOSTICS" Foreground="#5DE2DC" FontSize="12" FontWeight="Bold"/>
+     <TextBlock Text="Settings" Foreground="#F1F7FF" FontSize="36" FontWeight="Bold" Margin="0,14,0,12"/>
+     <TextBlock Text="Application information and troubleshooting tools." Foreground="#B2C8D8" FontSize="16" Margin="0,0,0,26"/>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,16">
+      <StackPanel>
+       <TextBlock Text="APPLICATION" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="FAF Caster Desktop" Foreground="#F1F7FF" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,5"/>
+       <TextBlock x:Name="VersionLabel" Foreground="#B2C8D8" FontSize="14"/>
+       <TextBlock Text="Closing the window keeps FAF Caster running in the system tray so OBS browser sources remain available. Use Exit FAF Caster from the tray menu to stop it." TextWrapping="Wrap" Foreground="#B2C8D8" Margin="0,14,0,0"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,16">
+      <StackPanel>
+       <TextBlock Text="CLOUD SESSIONS — FUTURE FEATURE" Foreground="#F2C477" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="Remote session linking" Foreground="#F1F7FF" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,8"/>
+       <TextBlock Text="Cloud session linking may be added to Settings in a future release. This feature is not available or planned for the 26.11.0 release." TextWrapping="Wrap" Foreground="#B2C8D8" FontSize="14"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22">
+      <StackPanel>
+       <TextBlock Text="TROUBLESHOOTING" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="If the Bridge fails to connect, open the diagnostic log and check for startup errors." TextWrapping="Wrap" Foreground="#B2C8D8" Margin="0,12,0,16"/>
+       <WrapPanel>
+        <Button Content="Open Bridge Log Folder" Click="OpenLogs_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Reconnect Bridge" Click="Retry_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+       </WrapPanel>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+   </ScrollViewer>
+   <Grid x:Name="SplashScreen" Background="#0B1522" Panel.ZIndex="5">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380">
+     <TextBlock Text="◇" Foreground="#5DE2DC" FontSize="58" HorizontalAlignment="Center"/>
+     <TextBlock Text="FAF CASTER" Foreground="#F1F7FF" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,12,0,4"/>
+     <TextBlock Text="CASTING COMPANION" Foreground="#87A8BC" FontSize="12" HorizontalAlignment="Center" Margin="0,0,0,30"/>
+     <ProgressBar IsIndeterminate="True" Height="4" Foreground="#5DE2DC" Background="#21394C"/>
+     <TextBlock x:Name="SplashStatus" Text="Starting desktop services…" Foreground="#B2C8D8" HorizontalAlignment="Center" Margin="0,15,0,0"/>
+    </StackPanel>
+   </Grid>
+  </Grid>
+ </DockPanel>
+
+</Window>
