@@ -3,10 +3,10 @@
   #define MyAppVersion "0.0.0"
 #endif
 #ifndef SourceDir
-  #define SourceDir "..\\artifacts\\FAF-Caster-Desktop"
+  #define SourceDir "..\artifacts\FAF-Caster-Desktop"
 #endif
 #ifndef OutputDir
-  #define OutputDir "..\\artifacts"
+  #define OutputDir "..\artifacts"
 #endif
 
 [Setup]
@@ -16,7 +16,7 @@ AppVersion={#MyAppVersion}
 AppPublisher=FAF Caster
 AppPublisherURL=https://github.com/FAF-Caster/FAF-Caster
 AppSupportURL=https://github.com/FAF-Caster/FAF-Caster/issues
-DefaultDirName={autopf}\\FAF Caster
+DefaultDirName={autopf}\FAF Caster
 DefaultGroupName=FAF Caster
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
@@ -27,19 +27,19 @@ WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
-UninstallDisplayIcon={app}\\FAF.Caster.Desktop.exe
+UninstallDisplayIcon={app}\FAF.Caster.Desktop.exe
 CloseApplications=yes
 RestartApplications=no
 
 [Files]
-Source: "{#SourceDir}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Icons]
-Name: "{group}\\FAF Caster"; Filename: "{app}\\FAF.Caster.Desktop.exe"
-Name: "{autodesktop}\\FAF Caster"; Filename: "{app}\\FAF.Caster.Desktop.exe"; Tasks: desktopicon
+Name: "{group}\FAF Caster"; Filename: "{app}\FAF.Caster.Desktop.exe"
+Name: "{autodesktop}\FAF Caster"; Filename: "{app}\FAF.Caster.Desktop.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\\FAF.Caster.Desktop.exe"; Description: "Launch FAF Caster"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\FAF.Caster.Desktop.exe"; Description: "Launch FAF Caster"; Flags: nowait postinstall skipifsilent
