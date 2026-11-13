@@ -184,7 +184,7 @@ public partial class MainWindow : Window
         {
             using var response = await _http.GetAsync(BaseUrl + "/api/health");
             response.EnsureSuccessStatusCode();
-            Status.Text = "Bridge: connected · 5077";
+            Status.Text = "Bridge: Connected";
             BridgeIndicator.Fill = Brushes.MediumSeaGreen;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge connected";
             _bridgeConnected = true;
@@ -200,7 +200,7 @@ public partial class MainWindow : Window
             if (_bridge is { HasExited: true })
                 Status.Text = $"Bridge exited (code {_bridge.ExitCode}). Check {_logPath}";
             else
-                Status.Text = "Waiting for Bridge on port 5077…";
+                Status.Text = "Bridge: Connecting…";
         }
         finally { _checkingHealth = false; }
     }
