@@ -27,6 +27,8 @@ if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "
     app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/studio", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/studio/overlay/{id:int}", (int id) => id is >= 1 and <= 5 ? Results.File(Path.Combine(dashboardPath, "index.html"), "text/html") : Results.NotFound());
 }
 else
 {
