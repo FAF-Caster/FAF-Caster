@@ -122,9 +122,15 @@ sealed class TelemetryStore
         // Reject malformed or non-finite numeric telemetry before it enters player snapshots.
         foreach (var field in new[] { "gameTime", "massIncome", "massSpent", "massStored", "massCapacity", "energyIncome", "energySpent", "energyStored", "energyCapacity", "units", "kills", "losses", "score" })
         {
-            if (!record.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.Number ||
+            // Capacity and other metrics can be absent in older UI mod builds.
+            // Reject malformed values when supplied, but do not drop the entire player.
+            if (!record.TryGetProperty(field, out var value)) continue;
+            if (value.ValueKind != JsonValueKind.Number ||
                 !value.TryGetDouble(out var number) || !double.IsFinite(number)) return;
         }
+        if (!record.TryGetProperty("gameTime", out var gameTime) ||
+            gameTime.ValueKind != JsonValueKind.Number || !gameTime.TryGetDouble(out var seconds) ||
+            !double.IsFinite(seconds) || seconds < 0) return;
         var copy = record.Clone();
         _players[armyId] = copy;
         Interlocked.Increment(ref _records);
