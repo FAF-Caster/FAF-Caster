@@ -1,0 +1,13 @@
+<Window x:Class="FAF.Caster.Desktop.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf" Title="FAF Caster" Width="1280" Height="820" MinWidth="850" MinHeight="540" Background="#101B2A">
+ <DockPanel>
+  <Border DockPanel.Dock="Top" Background="#172A3B" Padding="12"><StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+   <TextBlock Text="FAF CASTER" FontWeight="Bold" Foreground="#70E1E0" FontSize="17" Margin="0,0,22,0" VerticalAlignment="Center"/>
+   <Button Content="Companion" Click="Companion_Click" Margin="0,0,8,0" Padding="12,6"/>
+   <Button Content="Overlay Studio" Click="Studio_Click" Margin="0,0,8,0" Padding="12,6"/>
+   <Button Content="Open OBS overlay" Click="Obs_Click" Margin="0,0,8,0" Padding="12,6"/>
+   <Button Content="Retry connection" Click="Retry_Click" Padding="12,6"/>
+   <TextBlock x:Name="Status" Foreground="#D9E8F3" Margin="24,0,0,0" VerticalAlignment="Center" Text="Starting Bridge…"/>
+  </StackPanel></Border>
+  <wv2:WebView2 x:Name="Browser"/>
+ </DockPanel>
+</Window>
