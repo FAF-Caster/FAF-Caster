@@ -8,6 +8,7 @@ using System.Threading.Channels;
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://127.0.0.1:5077");
 builder.Services.AddSingleton<TelemetryStore>();
+builder.Services.AddSingleton<OverlayConfigurationStore>();
 builder.Services.AddHostedService<LogTailService>();
 var app = builder.Build();
 app.UseWebSockets();
@@ -26,11 +27,34 @@ if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "
     app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/studio", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
+    app.MapGet("/local/studio/overlay/{id:int}", (int id) => id is >= 1 and <= 5 ? Results.File(Path.Combine(dashboardPath, "index.html"), "text/html") : Results.NotFound());
 }
 else
 {
     app.Logger.LogInformation("Built dashboard not found at {Path}; run npm run build in FAF.Caster.dashboard", dashboardPath);
 }
+app.MapGet("/api/overlay-config", (OverlayConfigurationStore store) => Results.Json(store.Read()));
+app.MapPut("/api/overlay-config", async (HttpContext context, OverlayConfigurationStore store) =>
+{
+    try
+    {
+        using var document = await JsonDocument.ParseAsync(context.Request.Body, cancellationToken: context.RequestAborted);
+        if (document.RootElement.ValueKind != JsonValueKind.Array || document.RootElement.GetArrayLength() != 5)
+            return Results.BadRequest(new { error = "Exactly five overlay slots are required." });
+        var slots = document.RootElement.EnumerateArray().ToArray();
+        for (var i = 0; i < slots.Length; i++)
+        {
+            if (slots[i].ValueKind != JsonValueKind.Object ||
+                !slots[i].TryGetProperty("id", out var id) ||
+                id.ValueKind != JsonValueKind.Number || id.GetInt32() != i + 1)
+                return Results.BadRequest(new { error = "Invalid overlay slot IDs." });
+        }
+        await store.WriteAsync(document.RootElement, context.RequestAborted);
+        return Results.Ok(new { saved = true });
+    }
+    catch (JsonException) { return Results.BadRequest(new { error = "Invalid JSON." }); }
+});
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,
@@ -329,5 +353,40 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
         return latest.LastWriteTimeUtc > selected.LastWriteTimeUtc.AddSeconds(2)
             ? latest.FullName
             : selected.FullName;
+    }
+}
+
+sealed class OverlayConfigurationStore
+{
+    private readonly string _path = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "FAF-Caster", "overlay-config.json");
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
+    public JsonElement? Read()
+    {
+        _gate.Wait();
+        try
+        {
+            if (!File.Exists(_path)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(_path));
+            return doc.RootElement.Clone();
+        }
+        catch (IOException) { return null; }
+        catch (JsonException) { return null; }
+        finally { _gate.Release(); }
+    }
+
+    public async Task WriteAsync(JsonElement value, CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            var temp = _path + ".tmp";
+            await File.WriteAllTextAsync(temp, value.GetRawText(), cancellationToken);
+            File.Move(temp, _path, true);
+        }
+        finally { _gate.Release(); }
     }
 }
