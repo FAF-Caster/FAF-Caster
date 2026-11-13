@@ -34,6 +34,7 @@
      <StackPanel><TextBlock Text="FAF CASTER" FontSize="18" FontWeight="Bold" Foreground="#ECF9FF"/><TextBlock Text="DESKTOP COMPANION" FontSize="10" Foreground="#8CAAB9"/></StackPanel>
     </StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+     <Button Content="Home" Click="Home_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
      <Button Content="Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
      <Button Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}"/>
     </StackPanel>
@@ -55,7 +56,46 @@
     <Button Grid.Column="3" Content="Reconnect" Click="Retry_Click" Style="{StaticResource NavButton}"/>
    </Grid>
   </Border>
-  <wv2:WebView2 x:Name="Browser"/>
+  <Grid>
+   <wv2:WebView2 x:Name="Browser" Visibility="Collapsed"/>
+   <ScrollViewer x:Name="HomePage" VerticalScrollBarVisibility="Auto" Background="#0B1522">
+    <StackPanel MaxWidth="960" HorizontalAlignment="Center" Margin="36,48,36,40">
+     <TextBlock Text="FAF CASTER / GETTING STARTED" Foreground="#5DE2DC" FontSize="12" FontWeight="Bold"/>
+     <TextBlock Text="Your casting control centre." Foreground="#F1F7FF" FontSize="36" FontWeight="Bold" Margin="0,14,0,12"/>
+     <TextBlock Text="FAF Caster is a local companion for Forged Alliance Forever observers and tournament casters. View available match telemetry, configure broadcast overlays in Overlay Studio, and add the resulting browser sources to OBS." Foreground="#B2C8D8" FontSize="16" TextWrapping="Wrap" LineHeight="25" Margin="0,0,0,28"/>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,18">
+      <StackPanel>
+       <TextBlock Text="REQUIRED FOR LIVE GAME DATA" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="FAF Caster UI Mod" Foreground="#F1F7FF" FontWeight="SemiBold" FontSize="22" Margin="0,8,0,8"/>
+       <TextBlock Text="Live telemetry requires the separately distributed FAF Caster UI mod to be installed and enabled in FAF. The mod download and installation instructions are not published yet." TextWrapping="Wrap" Foreground="#B2C8D8" FontSize="14"/>
+       <TextBlock Text="Mod download: TBD" Foreground="#F2C477" FontWeight="SemiBold" Margin="0,14,0,0"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22">
+      <StackPanel>
+       <TextBlock Text="START CASTING" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="1. Install and enable the FAF Caster UI mod when available.&#10;2. Start FAF and join a match as an observer.&#10;3. Open Companion to monitor the session.&#10;4. Use Overlay Studio to configure OBS browser sources." Foreground="#D4E2EC" FontSize="14" LineHeight="27" Margin="0,12,0,18"/>
+       <WrapPanel>
+        <Button Content="Open Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Open Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Documentation (coming soon)" IsEnabled="False" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+       </WrapPanel>
+       <TextBlock Text="Documentation URL: TBD  •  UI mod URL: TBD" Foreground="#8098AA" FontSize="12" Margin="0,8,0,0"/>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+   </ScrollViewer>
+   <Grid x:Name="SplashScreen" Background="#0B1522" Panel.ZIndex="5">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="380">
+     <TextBlock Text="◇" Foreground="#5DE2DC" FontSize="58" HorizontalAlignment="Center"/>
+     <TextBlock Text="FAF CASTER" Foreground="#F1F7FF" FontSize="32" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,12,0,4"/>
+     <TextBlock Text="CASTING COMPANION" Foreground="#87A8BC" FontSize="12" HorizontalAlignment="Center" Margin="0,0,0,30"/>
+     <ProgressBar IsIndeterminate="True" Height="4" Foreground="#5DE2DC" Background="#21394C"/>
+     <TextBlock x:Name="SplashStatus" Text="Starting desktop services…" Foreground="#B2C8D8" HorizontalAlignment="Center" Margin="0,15,0,0"/>
+     <Button Content="Continue to Home" Click="DismissSplash_Click" Style="{StaticResource NavButton}" Margin="0,20,0,0" HorizontalAlignment="Center"/>
+    </StackPanel>
+   </Grid>
+  </Grid>
  </DockPanel>
 
 </Window>
