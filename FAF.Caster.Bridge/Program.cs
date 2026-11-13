@@ -46,7 +46,7 @@ app.MapGet("/local-api/overlay-config", (OverlayConfigurationStore store) => Res
 app.MapGet("/api/overlay-config", (OverlayConfigurationStore store) => Results.Json(store.Read()));
 app.MapPut("/local-api/overlay-config", SaveOverlayConfig);
 app.MapPut("/api/overlay-config", SaveOverlayConfig);
-async Task<IResult> SaveOverlayConfig(HttpContext context, OverlayConfigurationStore store) =>
+async Task<IResult> SaveOverlayConfig(HttpContext context, OverlayConfigurationStore store)
 {
     try
     {
