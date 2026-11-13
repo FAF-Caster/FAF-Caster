@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private readonly string _logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FAF-Caster", "bridge.log");
     private string _page = "/local";
     private bool _showHome = true;
+    private bool _splashComplete;
     public MainWindow()
     {
         InitializeComponent();
@@ -115,6 +116,8 @@ public partial class MainWindow : Window
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _ = FinishSplashAfterDelayAsync();
+        ShowHomeBehindSplash();
         try
         {
             await Browser.EnsureCoreWebView2Async();
@@ -185,7 +188,6 @@ public partial class MainWindow : Window
             BridgeIndicator.Fill = Brushes.MediumSeaGreen;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge connected";
             _bridgeConnected = true;
-            SplashScreen.Visibility = Visibility.Collapsed;
             if (!_showHome && _browserReady && Browser.Source?.AbsolutePath != _page)
                 Browser.CoreWebView2.Navigate(BaseUrl + _page);
         }
@@ -202,9 +204,18 @@ public partial class MainWindow : Window
         }
         finally { _checkingHealth = false; }
     }
-    private void DismissSplash_Click(object sender, RoutedEventArgs e)
+    private async Task FinishSplashAfterDelayAsync()
     {
+        // Give users time to recognise the branding, even when Bridge startup is instant.
+        await Task.Delay(TimeSpan.FromMilliseconds(3500));
+        _splashComplete = true;
         SplashScreen.Visibility = Visibility.Collapsed;
+    }
+    private void ShowHomeBehindSplash()
+    {
+        _showHome = true;
+        HomePage.Visibility = Visibility.Visible;
+        Browser.Visibility = Visibility.Collapsed;
     }
     private void Home_Click(object sender, RoutedEventArgs e) => ShowHome();
     private void ShowHome()
@@ -212,7 +223,7 @@ public partial class MainWindow : Window
         _showHome = true;
         HomePage.Visibility = Visibility.Visible;
         Browser.Visibility = Visibility.Collapsed;
-        SplashScreen.Visibility = Visibility.Collapsed;
+        if (_splashComplete) SplashScreen.Visibility = Visibility.Collapsed;
     }
     private void Navigate(string path)
     {
@@ -220,7 +231,7 @@ public partial class MainWindow : Window
         _showHome = false;
         HomePage.Visibility = Visibility.Collapsed;
         Browser.Visibility = Visibility.Visible;
-        SplashScreen.Visibility = Visibility.Collapsed;
+        if (_splashComplete) SplashScreen.Visibility = Visibility.Collapsed;
         if (_browserReady && _bridgeConnected) Browser.CoreWebView2.Navigate(BaseUrl + path);
     }
     private void Companion_Click(object sender, RoutedEventArgs e) => Navigate("/local");
