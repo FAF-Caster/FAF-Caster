@@ -70,3 +70,6 @@
 .os-browser-source{position:fixed;inset:0;padding:0!important;background:transparent!important}
 .os-browser-source .os-scene{width:100%;height:100%}
 @media(max-width:700px){.os-canvas-controls{gap:5px}.os-canvas-controls label{font-size:10px}}
+
+/* Editor and OBS share identical full-frame percentage coordinates. */
+.os-canvas-safe{inset:0!important}
