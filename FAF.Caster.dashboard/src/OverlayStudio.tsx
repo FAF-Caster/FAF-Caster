@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import type {CasterPlayer} from './LocalDashboard';
 import './overlay-studio.css';
 type Mode='caster'|'tournament';
@@ -21,13 +21,50 @@ function Preview({slot,players}:{slot:Slot;players:CasterPlayer[]}){
 }
 export default function OverlayStudio({players=[],overlayId}:{players?:CasterPlayer[];overlayId?:number}){
  const [slots,setSlots]=useState<Slot[]>(load);const [selected,setSelected]=useState(1);const [copied,setCopied]=useState(false);
+ const [ready,setReady]=useState(false);const [saveState,setSaveState]=useState<'loading'|'saved'|'saving'|'offline'>('loading');
+ const slotsRef=useRef(slots);const changed=useRef(false);const version=useRef('');
+ useEffect(()=>{slotsRef.current=slots;},[slots]);
+ useEffect(()=>{
+   let active=true;
+   const refresh=async()=>{
+     try{
+       const response=await fetch('/local-api/overlay-config',{cache:'no-store'});
+       if(!response.ok)throw new Error('Bridge unavailable');
+       const data:unknown=await response.json();
+       if(!active)return;
+       if(Array.isArray(data)&&data.length===5){
+         const raw=JSON.stringify(data);
+         if(!changed.current&&raw!==version.current){
+           version.current=raw;
+           setSlots(defaults.map((d,i)=>({...d,...data[i],id:i+1})));
+         }
+       }
+       setReady(true);setSaveState(state=>state==='loading'?'saved':state);
+     }catch{if(active){setReady(true);setSaveState('offline');}}
+   };
+   void refresh();const timer=window.setInterval(()=>{if(!changed.current)void refresh();},1200);
+   return()=>{active=false;window.clearInterval(timer)};
+ },[]);
+ useEffect(()=>{
+   if(!ready||!changed.current)return;
+   setSaveState('saving');
+   const timer=window.setTimeout(async()=>{
+     try{
+       const body=JSON.stringify(slotsRef.current);
+       const response=await fetch('/local-api/overlay-config',{method:'PUT',headers:{'Content-Type':'application/json'},body});
+       if(!response.ok)throw new Error('Save failed');
+       version.current=body;changed.current=false;setSaveState('saved');
+     }catch{setSaveState('offline');}
+   },350);
+   return()=>window.clearTimeout(timer);
+ },[slots,ready]);
  useEffect(()=>{localStorage.setItem(KEY,JSON.stringify(slots));},[slots]);
  const slot=slots[(overlayId??selected)-1]??slots[0];
- const change=(patch:Partial<Slot>)=>setSlots(current=>current.map(s=>s.id===selected?{...s,...patch}:s));
+ const change=(patch:Partial<Slot>)=>{changed.current=true;setSlots(current=>current.map(s=>s.id===selected?{...s,...patch}:s));};
  const url=`${window.location.origin}/local/studio/overlay/${slot.id}`;
  if(overlayId)return <div className="os-browser-source"><Preview slot={slot} players={players}/></div>;
  return <div className="os-page"><header className="os-top"><div><div className="os-kicker">FAF CASTER / STAGE 4</div><h1>Overlay Studio</h1><p>Five independent OBS browser sources. Configure once, use across your scenes.</p></div><a href="/local" className="os-back">← Live dashboard</a></header>
  <div className="os-workspace"><aside className="os-sidebar"><h2>Overlay slots <span>5 / 5</span></h2>{slots.map(s=><button type="button" key={s.id} className={'os-slot '+(selected===s.id?'active':'')} onClick={()=>{setSelected(s.id);setCopied(false)}}><span className="os-slot-number">0{s.id}</span><span><strong>{s.name}</strong><small>{s.mode==='caster'?'Caster':'Tournament'} · {s.layout}</small></span></button>)}<div className="os-hint"><strong>HOW IT WORKS</strong><p>Select a slot, adjust its appearance, then copy its URL into an OBS Browser Source.</p><p>All five sources can be active simultaneously.</p></div></aside>
- <main className="os-editor"><div className="os-editor-title"><div><div className="os-kicker">EDITING SLOT 0{selected}</div><h2>{slot.name}</h2></div><span className="os-status">LOCAL CONFIGURATION</span></div><div className="os-canvas-toolbar"><span><span className="os-live-dot"/> SCENE PREVIEW <small>1920 × 1080 · 16:9</small></span><span className="os-canvas-hint">OBS output area</span></div><div className="os-preview-frame"><div className="os-canvas"><div className="os-canvas-safe"><Preview slot={slot} players={players}/></div><div className="os-canvas-watermark">FAF CASTER · LIVE SCENE</div></div></div><div className="os-url"><div><strong>OBS browser source</strong><code>{url}</code></div><div className="os-url-actions"><a href={url} target="_blank" rel="noreferrer">Open</a><button type="button" onClick={()=>{void navigator.clipboard.writeText(url).then(()=>setCopied(true)).catch(()=>setCopied(false))}}>{copied?'Copied':'Copy URL'}</button></div></div><p className="os-note">Suggested OBS browser source size: 1920 × 1080. The browser view has a transparent background. Reload the browser source after changes.</p></main>
- <aside className="os-settings"><div className="os-properties-heading"><div className="os-kicker">OVERLAY CONFIGURATION</div><h2>Properties</h2><p>Changes are saved automatically in this browser.</p></div><div className="os-property-group"><h3>General</h3><label>Name<input value={slot.name} maxLength={64} onChange={e=>change({name:e.target.value})}/></label><label>Mode<select value={slot.mode} onChange={e=>change({mode:e.target.value as Mode})}><option value="caster">Caster Mode</option><option value="tournament">Tournament Mode</option></select></label><label>Layout<select value={slot.layout} onChange={e=>change({layout:e.target.value as Layout})}><option value="scoreboard">Scoreboard</option><option value="economy">Economy</option><option value="comparison">Player comparison</option><option value="match">Match information</option><option value="custom">Custom (starter layout)</option></select></label></div><div className="os-property-group"><h3>Appearance</h3><label>Accent colour<input type="color" value={slot.accent} onChange={e=>change({accent:e.target.value})}/></label><label>Scale · {slot.scale}%<input type="range" min="60" max="140" step="5" value={slot.scale} onChange={e=>change({scale:Number(e.target.value)})}/></label></div><div className="os-property-group"><h3>Visible elements</h3><label className="os-check"><input type="checkbox" checked={slot.showEconomy} onChange={e=>change({showEconomy:e.target.checked})}/> Economy data</label><label className="os-check"><input type="checkbox" checked={slot.showTimer} onChange={e=>change({showTimer:e.target.checked})}/> Match timer</label>{slot.mode==='tournament'&&<><label className="os-check"><input type="checkbox" checked={slot.showTeams} onChange={e=>change({showTeams:e.target.checked})}/> Tournament header</label><label>Tournament<input value={slot.tournamentName} onChange={e=>change({tournamentName:e.target.value})}/></label><label>Round<input value={slot.round} onChange={e=>change({round:e.target.value})}/></label><label>Series score<input value={slot.score} onChange={e=>change({score:e.target.value})}/></label></>}</div><button className="os-reset" type="button" onClick={()=>change(defaults[selected-1])}>Reset this slot</button></aside></div></div>;
+ <main className="os-editor"><div className="os-editor-title"><div><div className="os-kicker">EDITING SLOT 0{selected}</div><h2>{slot.name}</h2></div><span className="os-status">{saveState==='saved'?'SAVED TO BRIDGE':saveState==='saving'?'SAVING…':saveState==='offline'?'BRIDGE OFFLINE':'LOADING…'}</span></div><div className="os-canvas-toolbar"><span><span className="os-live-dot"/> SCENE PREVIEW <small>1920 × 1080 · 16:9</small></span><span className="os-canvas-hint">OBS output area</span></div><div className="os-preview-frame"><div className="os-canvas"><div className="os-canvas-safe"><Preview slot={slot} players={players}/></div><div className="os-canvas-watermark">FAF CASTER · LIVE SCENE</div></div></div><div className="os-url"><div><strong>OBS browser source</strong><code>{url}</code></div><div className="os-url-actions"><a href={url} target="_blank" rel="noreferrer">Open</a><button type="button" onClick={()=>{void navigator.clipboard.writeText(url).then(()=>setCopied(true)).catch(()=>setCopied(false))}}>{copied?'Copied':'Copy URL'}</button></div></div><p className="os-note">Suggested OBS browser source size: 1920 × 1080. The browser view has a transparent background. OBS updates automatically while the Bridge is running.</p></main>
+ <aside className="os-settings"><div className="os-properties-heading"><div className="os-kicker">OVERLAY CONFIGURATION</div><h2>Properties</h2><p>Changes are saved to the local Bridge and shared with OBS.</p></div><div className="os-property-group"><h3>General</h3><label>Name<input value={slot.name} maxLength={64} onChange={e=>change({name:e.target.value})}/></label><label>Mode<select value={slot.mode} onChange={e=>change({mode:e.target.value as Mode})}><option value="caster">Caster Mode</option><option value="tournament">Tournament Mode</option></select></label><label>Layout<select value={slot.layout} onChange={e=>change({layout:e.target.value as Layout})}><option value="scoreboard">Scoreboard</option><option value="economy">Economy</option><option value="comparison">Player comparison</option><option value="match">Match information</option><option value="custom">Custom (starter layout)</option></select></label></div><div className="os-property-group"><h3>Appearance</h3><label>Accent colour<input type="color" value={slot.accent} onChange={e=>change({accent:e.target.value})}/></label><label>Scale · {slot.scale}%<input type="range" min="60" max="140" step="5" value={slot.scale} onChange={e=>change({scale:Number(e.target.value)})}/></label></div><div className="os-property-group"><h3>Visible elements</h3><label className="os-check"><input type="checkbox" checked={slot.showEconomy} onChange={e=>change({showEconomy:e.target.checked})}/> Economy data</label><label className="os-check"><input type="checkbox" checked={slot.showTimer} onChange={e=>change({showTimer:e.target.checked})}/> Match timer</label>{slot.mode==='tournament'&&<><label className="os-check"><input type="checkbox" checked={slot.showTeams} onChange={e=>change({showTeams:e.target.checked})}/> Tournament header</label><label>Tournament<input value={slot.tournamentName} onChange={e=>change({tournamentName:e.target.value})}/></label><label>Round<input value={slot.round} onChange={e=>change({round:e.target.value})}/></label><label>Series score<input value={slot.score} onChange={e=>change({score:e.target.value})}/></label></>}</div><button className="os-reset" type="button" onClick={()=>change(defaults[selected-1])}>Reset this slot</button></aside></div></div>;
 }
