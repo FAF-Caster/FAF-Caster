@@ -58,3 +58,16 @@
 .caster-team-divider th strong{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:#e9f6ff}
 .caster-team-divider th span:last-child{margin-left:12px;color:#91aec2;font-size:11px;font-weight:500}
 .caster-team-divider-mark{display:inline-block;width:5px;height:16px;border-radius:3px;vertical-align:middle;margin-right:11px}
+
+/* Storage bars use reported storage capacity, not the income/spend ratio. */
+.caster-storage{min-width:165px;max-width:230px;display:flex;flex-direction:column;gap:7px}
+.caster-storage-label{display:flex;justify-content:space-between;gap:8px;align-items:baseline;white-space:nowrap;font-size:11px;font-variant-numeric:tabular-nums}
+.caster-storage-label strong{font-weight:750}
+.caster-storage-label span{color:#a7c2d1}
+.caster-storage-mass .caster-storage-label strong{color:#32e79a}
+.caster-storage-energy .caster-storage-label strong{color:#ffb547}
+.caster-storage-track{height:7px;width:100%;background:#213a4e;border-radius:6px;overflow:hidden}
+.caster-storage-track i{display:block;height:100%;border-radius:6px;transition:width .25s ease}
+.caster-storage-mass .caster-storage-track i{background:#32e79a}
+.caster-storage-energy .caster-storage-track i{background:#ffb547}
+.caster-storage-track.capacity-unknown{background:repeating-linear-gradient(90deg,#243e51 0 8px,#1b3142 8px 12px)}
