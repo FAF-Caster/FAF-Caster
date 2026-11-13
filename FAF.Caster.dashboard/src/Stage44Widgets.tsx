@@ -1,7 +1,7 @@
 import type {CasterPlayer} from './LocalDashboard';
 export type TelemetryWidgetKind='scoreboard'|'economy'|'timer'|'title'|'tournament';
 export type TelemetryWidget={id:string;kind:TelemetryWidgetKind;playerIds?:number[];teamId?:number;economyView?:'both'|'mass'|'energy';maxPlayers?:number;groupByTeam?:boolean};
-export type TelemetrySlot={mode:'caster'|'tournament';tournamentName:string;round:string;score:string;teamNames?:Record<string,string>;showTeams:boolean};
+export type TelemetrySlot={logoData?:string;mode:'caster'|'tournament';tournamentName:string;round:string;score:string;teamNames?:Record<string,string>;showTeams:boolean};
 export type TelemetryContext={players:CasterPlayer[];teams?:Record<number,number>;};
 export const factionNames:Record<number,string>={1:'UEF',2:'Aeon',3:'Cybran',4:'Seraphim'};
 const n=(value:number|undefined,decimals=1)=>Number.isFinite(value)?Number(value).toLocaleString('en-GB',{maximumFractionDigits:decimals}):'—';
@@ -13,9 +13,9 @@ export function selectWidgetPlayers(widget:TelemetryWidget,context:TelemetryCont
 export function WidgetTelemetry({widget,slot,context}:{widget:TelemetryWidget;slot:TelemetrySlot;context:TelemetryContext}){
  const players=selectWidgetPlayers(widget,context);
  const time=Math.max(0,...context.players.map(p=>p.gameTime||0));
- if(widget.kind==='title')return <div className="os-widget-title">{slot.mode==='tournament'?slot.tournamentName:'FAF CASTER'}</div>;
+ if(widget.kind==='title')return <div className="os-widget-title">{slot.logoData&&<img className="os-broadcast-logo" src={slot.logoData} alt=""/>}{slot.mode==='tournament'?slot.tournamentName:'FAF CASTER'}</div>;
  if(widget.kind==='timer')return <div className="os-widget-timer">{Math.floor(time/60).toString().padStart(2,'0')}:{Math.floor(time%60).toString().padStart(2,'0')}</div>;
- if(widget.kind==='tournament')return <div className="os-widget-info"><strong>{slot.tournamentName}</strong><span>{slot.round}</span><b>{slot.score}</b></div>;
+ if(widget.kind==='tournament')return <div className="os-widget-info">{slot.logoData&&<img className="os-broadcast-logo" src={slot.logoData} alt=""/>}<strong>{slot.tournamentName}</strong><span>{slot.round}</span><b>{slot.score}</b></div>;
  if(!players.length)return <div className="os-widget-empty">Waiting for matching player telemetry</div>;
  const teamName=(id:number)=>slot.teamNames?.[String(id)]||`Team ${id}`;
  if(widget.kind==='scoreboard'){
