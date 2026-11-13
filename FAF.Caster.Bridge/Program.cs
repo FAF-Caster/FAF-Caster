@@ -25,7 +25,6 @@ if (Directory.Exists(dashboardPath) && File.Exists(Path.Combine(dashboardPath, "
     app.UseStaticFiles(new StaticFileOptions { FileProvider = files });
     app.MapGet("/", () => Results.Redirect("/local"));
     app.MapGet("/local", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
-    app.MapGet("/local/", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/overlay", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/studio", () => Results.File(Path.Combine(dashboardPath, "index.html"), "text/html"));
     app.MapGet("/local/studio/overlay/{id:int}", (int id) => id is >= 1 and <= 5 ? Results.File(Path.Combine(dashboardPath, "index.html"), "text/html") : Results.NotFound());
