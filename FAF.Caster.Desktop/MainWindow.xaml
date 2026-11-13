@@ -24,6 +24,11 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Style x:Key="ActiveNavButton" TargetType="Button" BasedOn="{StaticResource NavButton}">
+   <Setter Property="Background" Value="#155A69"/>
+   <Setter Property="BorderBrush" Value="#5DE2DC"/>
+   <Setter Property="Foreground" Value="#FFFFFF"/>
+  </Style>
  </Window.Resources>
  <DockPanel>
   <Border DockPanel.Dock="Top" Background="#142537" Padding="22,14" BorderBrush="#294054" BorderThickness="0,0,0,1">
@@ -34,9 +39,10 @@
      <StackPanel><TextBlock Text="FAF CASTER" FontSize="18" FontWeight="Bold" Foreground="#ECF9FF"/><TextBlock Text="DESKTOP COMPANION" FontSize="10" Foreground="#8CAAB9"/></StackPanel>
     </StackPanel>
     <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-     <Button Content="Home" Click="Home_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
-     <Button Content="Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
-     <Button Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}"/>
+     <Button x:Name="HomeButton" Content="Home" Click="Home_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="CompanionButton" Content="Companion" Click="Companion_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="StudioButton" Content="Overlay Studio" Click="Studio_Click" Style="{StaticResource NavButton}" Margin="0,0,10,0"/>
+     <Button x:Name="SettingsButton" Content="Settings" Click="Settings_Click" Style="{StaticResource NavButton}"/>
     </StackPanel>
 
    </Grid>
@@ -81,6 +87,31 @@
         <Button Content="Documentation (coming soon)" IsEnabled="False" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
        </WrapPanel>
        <TextBlock Text="Documentation URL: TBD  •  UI mod URL: TBD" Foreground="#8098AA" FontSize="12" Margin="0,8,0,0"/>
+      </StackPanel>
+     </Border>
+    </StackPanel>
+   </ScrollViewer>
+   <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed" Background="#0B1522" VerticalScrollBarVisibility="Auto">
+    <StackPanel MaxWidth="820" HorizontalAlignment="Center" Margin="36,48,36,40">
+     <TextBlock Text="PREFERENCES / DIAGNOSTICS" Foreground="#5DE2DC" FontSize="12" FontWeight="Bold"/>
+     <TextBlock Text="Settings" Foreground="#F1F7FF" FontSize="36" FontWeight="Bold" Margin="0,14,0,12"/>
+     <TextBlock Text="Application information and troubleshooting tools." Foreground="#B2C8D8" FontSize="16" Margin="0,0,0,26"/>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,16">
+      <StackPanel>
+       <TextBlock Text="APPLICATION" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="FAF Caster Desktop" Foreground="#F1F7FF" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,5"/>
+       <TextBlock x:Name="VersionLabel" Foreground="#B2C8D8" FontSize="14"/>
+       <TextBlock Text="Closing the window keeps FAF Caster running in the system tray so OBS browser sources remain available. Use Exit FAF Caster from the tray menu to stop it." TextWrapping="Wrap" Foreground="#B2C8D8" Margin="0,14,0,0"/>
+      </StackPanel>
+     </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22">
+      <StackPanel>
+       <TextBlock Text="TROUBLESHOOTING" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="If the Bridge fails to connect, open the diagnostic log and check for startup errors." TextWrapping="Wrap" Foreground="#B2C8D8" Margin="0,12,0,16"/>
+       <WrapPanel>
+        <Button Content="Open Bridge Log Folder" Click="OpenLogs_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+        <Button Content="Reconnect Bridge" Click="Retry_Click" Style="{StaticResource NavButton}" Margin="0,0,10,10"/>
+       </WrapPanel>
       </StackPanel>
      </Border>
     </StackPanel>
