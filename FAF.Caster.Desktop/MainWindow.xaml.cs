@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.ComponentModel;
+using System.Drawing;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
@@ -12,6 +14,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(3) };
     private Process? _bridge;
     private bool _ownsBridge;
+    private System.Windows.Forms.NotifyIcon? _tray;
+    private bool _exitRequested;
     private bool _browserReady;
     private bool _bridgeConnected;
     private bool _checkingHealth;
@@ -22,8 +26,59 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        InitializeTray();
         Closed += OnClosed;
-        _healthTimer.Tick += async (_, _) => await CheckHealthAsync();
+        _healthTimer.Tick += async (_, _) => { await CheckHealthAsync(); CheckGameProcess(); };
+    }
+    private void InitializeTray()
+    {
+        _tray = new System.Windows.Forms.NotifyIcon
+        {
+            Icon = SystemIcons.Application,
+            Text = "FAF Caster · starting",
+            Visible = true
+        };
+        var menu = new System.Windows.Forms.ContextMenuStrip();
+        menu.Items.Add("Open FAF Caster", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
+        menu.Items.Add("Companion", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); Navigate("/local"); }));
+        menu.Items.Add("Overlay Studio", null, (_, _) => Dispatcher.Invoke(() => { ShowFromTray(); Navigate("/local/studio"); }));
+        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+        menu.Items.Add("Exit FAF Caster", null, (_, _) => Dispatcher.Invoke(ExitApplication));
+        _tray.ContextMenuStrip = menu;
+        _tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
+    }
+    private void ShowFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+    }
+    private void ExitApplication()
+    {
+        _exitRequested = true;
+        Close();
+    }
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_exitRequested) return;
+        e.Cancel = true;
+        Hide();
+        if (_tray != null)
+        {
+            _tray.BalloonTipTitle = "FAF Caster is still running";
+            _tray.BalloonTipText = "OBS overlays remain active. Right-click the tray icon to exit.";
+            _tray.ShowBalloonTip(2500);
+        }
+    }
+    private void CheckGameProcess()
+    {
+        try
+        {
+            // Forged Alliance game process. Presence does not imply observer telemetry.
+            bool running = Process.GetProcessesByName("ForgedAlliance").Any();
+            GameStatus.Text = running ? "FAF: game running" : "FAF: not running";
+        }
+        catch { GameStatus.Text = "FAF: status unavailable"; }
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -42,6 +97,7 @@ public partial class MainWindow : Window
             };
             StartBridgeIfNeeded();
             _healthTimer.Start();
+            CheckGameProcess();
             await CheckHealthAsync();
         }
         catch (Exception ex) { Status.Text = "Startup failed: " + ex.Message; }
@@ -92,7 +148,8 @@ public partial class MainWindow : Window
         {
             using var response = await _http.GetAsync(BaseUrl + "/api/health");
             response.EnsureSuccessStatusCode();
-            Status.Text = "Bridge connected · OBS port 5077";
+            Status.Text = "Bridge connected · 5077";
+            if (_tray != null) _tray.Text = "FAF Caster · Bridge connected";
             _bridgeConnected = true;
             if (_browserReady && Browser.Source?.AbsolutePath != _page)
                 Browser.CoreWebView2.Navigate(BaseUrl + _page);
@@ -100,6 +157,7 @@ public partial class MainWindow : Window
         catch
         {
             _bridgeConnected = false;
+            if (_tray != null) _tray.Text = "FAF Caster · Bridge disconnected";
             if (_bridge is { HasExited: true })
                 Status.Text = $"Bridge exited (code {_bridge.ExitCode}). Check {_logPath}";
             else
@@ -126,6 +184,7 @@ public partial class MainWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         _healthTimer.Stop();
+        if (_tray != null) { _tray.Visible = false; _tray.Dispose(); _tray = null; }
         if (_ownsBridge && _bridge is { HasExited: false })
         {
             try { _bridge.Kill(entireProcessTree: true); _bridge.WaitForExit(2000); } catch { }
