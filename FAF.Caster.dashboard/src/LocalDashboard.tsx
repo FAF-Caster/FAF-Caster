@@ -16,7 +16,7 @@ function ResourceStorage({kind,stored,capacity,comparisonMax,income,spent}:{kind
  const percent=Math.max(0,Math.min(100,stored/scale*100));
  const label=max===null?'Relative to highest observed '+kind+' storage ('+fmt(scale)+'); actual capacity not reported':fmt(stored)+' of '+fmt(max)+' stored';
  return <div className={'caster-storage caster-storage-'+kind} title={label}>
-  <div className="caster-storage-label"><strong>{fmt(stored,kind==='mass'?1:0)} / {max===null?'—':fmt(max)}</strong><span>(+{fmt(income,kind==='mass'?1:0)} / {fmt(spent,kind==='mass'?1:0)})</span></div>
+  <div className="caster-storage-label"><strong>{fmt(stored,kind==='mass'?1:0)}{max===null?' '+(kind==='mass'?'Mass':'Energy'):' / '+fmt(max)}</strong><span>(+{fmt(income,kind==='mass'?1:0)} / {fmt(spent,kind==='mass'?1:0)})</span></div>
   <div className={'caster-storage-track '+(max===null?'relative-storage':'')} role="progressbar" aria-label={kind==='mass'?'Mass storage relative to observed peak':'Energy storage relative to observed peak'} aria-valuemin={0} aria-valuemax={scale} aria-valuenow={Math.max(0,stored)}><i style={{width:percent+'%'}}/></div>
  </div>;
 }
