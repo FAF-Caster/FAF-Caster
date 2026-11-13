@@ -13,6 +13,10 @@ public partial class MainWindow : Window
     private Process? _bridge;
     private bool _ownsBridge;
     private bool _browserReady;
+    private bool _bridgeConnected;
+    private bool _checkingHealth;
+    private string? _bridgeError;
+    private readonly string _logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FAF-Caster", "bridge.log");
     private string _page = "/local";
     public MainWindow()
     {
@@ -54,33 +58,59 @@ public partial class MainWindow : Window
         }
         try
         {
-            _bridge = Process.Start(new ProcessStartInfo(bridgeExe)
+            Directory.CreateDirectory(Path.GetDirectoryName(_logPath)!);
+            File.AppendAllText(_logPath, $"{Environment.NewLine}--- Bridge started {DateTimeOffset.Now:O} ---{Environment.NewLine}");
+            var info = new ProcessStartInfo(bridgeExe)
             {
                 WorkingDirectory = Path.GetDirectoryName(bridgeExe)!,
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 Arguments = "--dashboard \"" + dashboard + "\""
-            });
-            _ownsBridge = _bridge != null;
+            };
+            _bridge = new Process { StartInfo = info, EnableRaisingEvents = true };
+            _bridge.OutputDataReceived += (_, e) => AppendBridgeLog(e.Data);
+            _bridge.ErrorDataReceived += (_, e) => { AppendBridgeLog(e.Data); if (!string.IsNullOrWhiteSpace(e.Data)) _bridgeError = e.Data; };
+            _bridge.Start();
+            _bridge.BeginOutputReadLine();
+            _bridge.BeginErrorReadLine();
+            _ownsBridge = true;
         }
         catch (Exception ex) { Status.Text = "Unable to launch Bridge: " + ex.Message; }
     }
+    private void AppendBridgeLog(string? line)
+    {
+        if (line is null) return;
+        try { File.AppendAllText(_logPath, line + Environment.NewLine); } catch { }
+    }
     private async Task CheckHealthAsync()
     {
+        if (_checkingHealth) return;
+        _checkingHealth = true;
         try
         {
             using var response = await _http.GetAsync(BaseUrl + "/api/health");
             response.EnsureSuccessStatusCode();
             Status.Text = "Bridge connected · OBS port 5077";
+            _bridgeConnected = true;
             if (_browserReady && Browser.Source?.AbsolutePath != _page)
                 Browser.CoreWebView2.Navigate(BaseUrl + _page);
         }
-        catch { Status.Text = "Waiting for local Bridge on port 5077…"; }
+        catch
+        {
+            _bridgeConnected = false;
+            if (_bridge is { HasExited: true })
+                Status.Text = $"Bridge exited (code {_bridge.ExitCode}). Check {_logPath}";
+            else
+                Status.Text = "Waiting for Bridge on port 5077…";
+        }
+        finally { _checkingHealth = false; }
     }
     private void Navigate(string path)
     {
         _page = path;
-        if (_browserReady) Browser.CoreWebView2.Navigate(BaseUrl + path);
+        if (_browserReady && _bridgeConnected) Browser.CoreWebView2.Navigate(BaseUrl + path);
     }
     private void Companion_Click(object sender, RoutedEventArgs e) => Navigate("/local");
     private void Studio_Click(object sender, RoutedEventArgs e) => Navigate("/local/studio");
