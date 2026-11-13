@@ -117,8 +117,14 @@ sealed class TelemetryStore
     public JsonElement[] Snapshot() => _players.OrderBy(p => p.Key).Select(p => p.Value).ToArray();
     public void Update(JsonElement record)
     {
-        if (!record.TryGetProperty("armyId", out var id) || !id.TryGetInt32(out int armyId)) return;
+        if (!record.TryGetProperty("armyId", out var id) || !id.TryGetInt32(out int armyId) || armyId < 1 || armyId > 1000) return;
         if (!record.TryGetProperty("version", out var version) || !version.TryGetInt32(out int v) || v != 2) return;
+        // Reject malformed or non-finite numeric telemetry before it enters player snapshots.
+        foreach (var field in new[] { "gameTime", "massIncome", "massSpent", "massStored", "massCapacity", "energyIncome", "energySpent", "energyStored", "energyCapacity", "units", "kills", "losses", "score" })
+        {
+            if (!record.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.Number ||
+                !value.TryGetDouble(out var number) || !double.IsFinite(number)) return;
+        }
         var copy = record.Clone();
         _players[armyId] = copy;
         Interlocked.Increment(ref _records);
@@ -136,7 +142,7 @@ sealed class TelemetryStore
                 }
             }
         }
-        var message = JsonSerializer.Serialize(new { type = "player", player = copy });
+        var message = JsonSerializer.Serialize(new { type = "player", player = copy, generation = Interlocked.Read(ref _generation) });
         foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
     }
     public void Reset()
@@ -173,7 +179,7 @@ sealed record EconomySample(double Time, double MassIncome, double MassSpent, do
     {
         sample = default!;
         double Read(string key) => item.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.Number && p.TryGetDouble(out var v) ? v : 0;
-        if (!item.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var t)) return false;
+        if (!item.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var t) || !double.IsFinite(t) || t < 0) return false;
         sample = new EconomySample(t, Read("massIncome"), Read("massSpent"), Read("energyIncome"), Read("energySpent"), Read("massStored"), Read("energyStored"));
         return true;
     }
