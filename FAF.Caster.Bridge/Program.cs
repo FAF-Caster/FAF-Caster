@@ -65,7 +65,7 @@ async Task<IResult> SaveOverlayConfig(HttpContext context, OverlayConfigurationS
         return Results.Ok(new { saved = true });
     }
     catch (JsonException) { return Results.BadRequest(new { error = "Invalid JSON." }); }
-});
+}
 app.MapGet("/api/health", (TelemetryStore store) => Results.Ok(new
 {
     status = "ok", players = store.Count, records = store.Records,
