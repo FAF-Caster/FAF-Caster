@@ -104,6 +104,13 @@
        <TextBlock Text="Closing the window keeps FAF Caster running in the system tray so OBS browser sources remain available. Use Exit FAF Caster from the tray menu to stop it." TextWrapping="Wrap" Foreground="#B2C8D8" Margin="0,14,0,0"/>
       </StackPanel>
      </Border>
+     <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22" Margin="0,0,0,16">
+      <StackPanel>
+       <TextBlock Text="CLOUD SESSIONS — FUTURE FEATURE" Foreground="#F2C477" FontWeight="Bold" FontSize="12"/>
+       <TextBlock Text="Remote session linking" Foreground="#F1F7FF" FontSize="20" FontWeight="SemiBold" Margin="0,10,0,8"/>
+       <TextBlock Text="Cloud session linking may be added to Settings in a future release. This feature is not available or planned for the 26.11.0 release." TextWrapping="Wrap" Foreground="#B2C8D8" FontSize="14"/>
+      </StackPanel>
+     </Border>
      <Border Background="#142537" BorderBrush="#365568" BorderThickness="1" CornerRadius="12" Padding="22">
       <StackPanel>
        <TextBlock Text="TROUBLESHOOTING" Foreground="#5DE2DC" FontWeight="Bold" FontSize="12"/>
