@@ -99,6 +99,23 @@ sealed class TelemetryStore
     private string? _source;
     private string? _sessionId;
     private long _generation;
+    private bool _matchEnded;
+    private double? _matchEndedGameTime;
+    public void ReadMatchEvent(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("event", out var kind) || kind.GetString() != "ended") return;
+            if (!doc.RootElement.TryGetProperty("gameTime", out var time) || !time.TryGetDouble(out var seconds) || !double.IsFinite(seconds) || seconds < 0) return;
+            _matchEndedGameTime = seconds;
+            _matchEnded = true;
+            var message = JsonSerializer.Serialize(new { type = "session", session = SessionSnapshot() });
+            foreach (var channel in _clients.Values) channel.Writer.TryWrite(message);
+        }
+        catch (JsonException) { }
+        catch (InvalidOperationException) { }
+    }
     public string? Source => _source;
     public object SessionSnapshot()
     {
@@ -106,7 +123,8 @@ sealed class TelemetryStore
         var capturing = updated.HasValue && DateTimeOffset.UtcNow - updated.Value < TimeSpan.FromSeconds(15);
         var matchId = _source is null ? null : Path.GetFileNameWithoutExtension(_source).Split('_').LastOrDefault();
         return new { mode = "local", sessionId = _sessionId, matchId, generation = Interlocked.Read(ref _generation),
-            status = _source is null ? "waiting" : capturing ? "capturing" : Records > 0 ? "idle" : "detected",
+            status = _source is null ? "waiting" : _matchEnded ? "ended" : capturing ? "capturing" : Records > 0 ? "idle" : "detected",
+            endedGameTime = _matchEndedGameTime,
             source = _source, players = Count, records = Records, lastUpdateUtc = updated };
     }
     public void SelectSource(string? source)
@@ -131,6 +149,9 @@ sealed class TelemetryStore
         if (!record.TryGetProperty("gameTime", out var gameTime) ||
             gameTime.ValueKind != JsonValueKind.Number || !gameTime.TryGetDouble(out var seconds) ||
             !double.IsFinite(seconds) || seconds < 0) return;
+        // Stage 3: defeat must be explicitly reported, never inferred from zero units or missing updates.
+        if (record.TryGetProperty("defeated", out var defeated) &&
+            defeated.ValueKind != JsonValueKind.True && defeated.ValueKind != JsonValueKind.False) return;
         var copy = record.Clone();
         _players[armyId] = copy;
         Interlocked.Increment(ref _records);
@@ -153,6 +174,8 @@ sealed class TelemetryStore
     }
     public void Reset()
     {
+        _matchEnded = false;
+        _matchEndedGameTime = null;
         _players.Clear();
         lock(_metadataLock) _metadata = new LocalMatchMetadata();
         lock (_historyLock) _history.Clear();
@@ -194,6 +217,7 @@ sealed record EconomySample(double Time, double MassIncome, double MassSpent, do
 sealed class LogTailService(IConfiguration configuration, TelemetryStore store, ILogger<LogTailService> logger) : BackgroundService
 {
     private const string Prefix = "[FAFCASTER:PLAYER] ";
+    private const string MatchPrefix = "[FAFCASTER:MATCH] ";
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var explicitPath = configuration["log"];
@@ -248,6 +272,8 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
                             var line = pending[..end].TrimEnd('\r');
                             pending = pending[(end + 1)..];
                             store.ReadMetadata(line);
+                            var matchMarker = line.IndexOf(MatchPrefix, StringComparison.Ordinal);
+                            if (matchMarker >= 0) store.ReadMatchEvent(line[(matchMarker + MatchPrefix.Length)..].Trim());
                             var marker = line.IndexOf(Prefix, StringComparison.Ordinal);
                             if (marker < 0) continue;
                             var json = line[(marker + Prefix.Length)..].Trim();
