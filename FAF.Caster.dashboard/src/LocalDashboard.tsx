@@ -1,5 +1,5 @@
 import {Fragment,useMemo,useState} from 'react';
-import {Activity,BarChart3,ChartNoAxesCombined,ChevronDown,Clapperboard,Copy,Eye,Gamepad2,LayoutDashboard,Monitor,Radio,Search,Settings2,Shield,SlidersHorizontal,Users,Zap} from 'lucide-react';
+import {Activity,BarChart3,ChartNoAxesCombined,ChevronDown,Clapperboard,Eye,Gamepad2,LayoutDashboard,Monitor,Radio,Search,Shield,SlidersHorizontal,Users,Zap} from 'lucide-react';
 import './local-dashboard.css';
 
 export type CasterPlayer={defeated?:boolean;color?:string;armyColor?:string;armyId:number;name:string;type:string;faction:number;gameTime:number;massIncome:number;massSpent:number;massStored:number;massCapacity?:number;massStorageMax?:number;massStorageCapacity?:number;energyIncome:number;energySpent:number;energyStored:number;energyCapacity?:number;energyStorageMax?:number;energyStorageCapacity?:number;units:number;kills:number;losses:number;score:number;built:number;landBuilt:number;airBuilt:number;navalBuilt:number;structuresBuilt:number;experimentalBuilt:number;massReclaimed:number};
@@ -72,7 +72,7 @@ function Trend({title,players,history,teams,metric}:{title:string;players:Caster
  return <section className={'caster-panel trend-panel '+(resource?'caster-resource-'+resource:'')}><div className="caster-panel-head"><h3><ChartNoAxesCombined size={19}/>{title}</h3><span className="muted">Live telemetry</span></div>{all.length<2?<div className="caster-empty-chart">Waiting for historical samples</div>:<svg className="caster-trend" viewBox="0 0 710 205" preserveAspectRatio="none" role="img" aria-label={title}>{[25,75,125,175].map(y=><line key={y} x1="36" x2="680" y1={y} y2={y} stroke="#1d3a51" strokeDasharray="3 5"/>)}{series.map(s=>s.data.length>1?<polyline key={s.name} fill="none" stroke={s.color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" points={points(s.data)}/>:null)}</svg>}<div className="caster-legend">{series.map(s=><span key={s.name}><i style={{background:s.color}}/>{s.name} · {metric==='units'?'Units '+fmt(s.data.at(-1)?.v??0):'Income '+fmt(s.data.at(-1)?.v??0,1)+'/s'}{resource?' · Stored '+fmt(players.filter(p=>(teams[p.armyId]??0)===s.team).reduce((n,p)=>n+(resource==='mass'?p.massStored:p.energyStored),0)):''}</span>)}</div></section>;
 }
 export default function LocalDashboard({players,history,session,metadata,connected,teams,error}:Props){
- const [tab,setTab]=useState<Tab>('Overview'),[search,setSearch]=useState(''),[sort,setSort]=useState('team'),[selected,setSelected]=useState<number|null>(null),[copied,setCopied]=useState(false);
+ const [tab,setTab]=useState<Tab>('Overview'),[search,setSearch]=useState(''),[sort,setSort]=useState('team'),[selected,setSelected]=useState<number|null>(null);
  const time=Math.max(0,...players.map(p=>p.gameTime||0));
  const timer=`${String(Math.floor(time/3600)).padStart(2,'0')}:${String(Math.floor(time%3600/60)).padStart(2,'0')}:${String(Math.floor(time%60)).padStart(2,'0')}`;
  const groups=useMemo(()=>{
