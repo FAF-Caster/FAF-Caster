@@ -75,3 +75,18 @@
 /* Relative storage bars are filled using the largest observed storage amount until capacity is available. */
 .caster-storage-track.relative-storage{background:#213a4e}
 .caster-storage-track.relative-storage i{opacity:.9}
+
+/* Compact economy table: keep related data together rather than stretching every column across a wide monitor. */
+.caster-table-economy{width:100%;max-width:1200px;table-layout:fixed}
+.caster-table-economy th:nth-child(1){width:48px}
+.caster-table-economy th:nth-child(2){width:220px}
+.caster-table-economy th:nth-child(3){width:70px}
+.caster-table-economy th:nth-child(4),.caster-table-economy th:nth-child(5){width:235px}
+.caster-table-economy th:nth-child(6){width:78px}
+.caster-table-economy th:nth-child(7){width:100px}
+.caster-table-economy th:nth-child(8){width:105px}
+.caster-table-economy td{padding-top:8px;padding-bottom:8px}
+.caster-table-economy .caster-team-divider th{padding-top:9px;padding-bottom:9px}
+.caster-table-economy .caster-storage{max-width:none;min-width:0}
+.caster-table-economy .caster-player-name{overflow:hidden;text-overflow:ellipsis}
+@media(max-width:1250px){.caster-table-economy{min-width:1050px}}
