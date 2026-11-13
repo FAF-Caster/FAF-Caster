@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.ComponentModel;
 using System.Drawing;
+using System.Windows.Media;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
@@ -77,8 +78,9 @@ public partial class MainWindow : Window
             // Forged Alliance game process. Presence does not imply observer telemetry.
             bool running = Process.GetProcessesByName("ForgedAlliance").Any();
             GameStatus.Text = running ? "FAF: game running" : "FAF: not running";
+            GameIndicator.Fill = running ? Brushes.MediumSeaGreen : Brushes.SlateGray;
         }
-        catch { GameStatus.Text = "FAF: status unavailable"; }
+        catch { GameStatus.Text = "FAF: status unavailable"; GameIndicator.Fill = Brushes.Goldenrod; }
     }
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
@@ -148,7 +150,8 @@ public partial class MainWindow : Window
         {
             using var response = await _http.GetAsync(BaseUrl + "/api/health");
             response.EnsureSuccessStatusCode();
-            Status.Text = "Bridge connected · 5077";
+            Status.Text = "Bridge: connected · 5077";
+            BridgeIndicator.Fill = Brushes.MediumSeaGreen;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge connected";
             _bridgeConnected = true;
             if (_browserReady && Browser.Source?.AbsolutePath != _page)
@@ -157,6 +160,7 @@ public partial class MainWindow : Window
         catch
         {
             _bridgeConnected = false;
+            BridgeIndicator.Fill = Brushes.IndianRed;
             if (_tray != null) _tray.Text = "FAF Caster · Bridge disconnected";
             if (_bridge is { HasExited: true })
                 Status.Text = $"Bridge exited (code {_bridge.ExitCode}). Check {_logPath}";
@@ -172,10 +176,6 @@ public partial class MainWindow : Window
     }
     private void Companion_Click(object sender, RoutedEventArgs e) => Navigate("/local");
     private void Studio_Click(object sender, RoutedEventArgs e) => Navigate("/local/studio");
-    private void Obs_Click(object sender, RoutedEventArgs e)
-    {
-        try { Process.Start(new ProcessStartInfo(BaseUrl + "/local/studio/overlay/1") { UseShellExecute = true }); } catch { }
-    }
     private async void Retry_Click(object sender, RoutedEventArgs e)
     {
         if (_bridge is null || _bridge.HasExited) StartBridgeIfNeeded();
