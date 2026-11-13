@@ -272,12 +272,12 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             await Task.Delay(500, stoppingToken);
         }
     }
-    // Keep following an actively written log. Switching based solely on LastWriteTimeUtc
-    // can jump to an old replay that was touched by another process.
+    // LastWriteTimeUtc is the reliable indicator of the log FAF is currently
+    // updating. CreationTimeUtc may be preserved or changed by replay copying.
+    // A small hysteresis prevents bouncing between files with near-equal times.
     private static string? FindLatestLog(string directory, string? current)
     {
         if (!Directory.Exists(directory)) return null;
-        var now = DateTime.UtcNow;
         var files = Directory.EnumerateFiles(directory, "*.log", SearchOption.TopDirectoryOnly)
             .Where(path =>
             {
@@ -289,34 +289,19 @@ sealed class LogTailService(IConfiguration configuration, TelemetryStore store, 
             .ToArray();
         if (files.Length == 0) return null;
 
-        // New match logs normally have a newer creation timestamp. A new log can
-        // supersede an active log, but an older replay cannot steal focus merely
-        // because its modification time changes.
-        var currentFile = files.FirstOrDefault(f => string.Equals(f.FullName, current, StringComparison.OrdinalIgnoreCase));
-        if (currentFile is not null)
-        {
-            var newer = files.Where(f => f.CreationTimeUtc > currentFile.CreationTimeUtc.AddSeconds(2)
-                                      && now - f.LastWriteTimeUtc < TimeSpan.FromSeconds(30))
-                .OrderByDescending(f => f.CreationTimeUtc)
-                .ThenByDescending(f => f.LastWriteTimeUtc)
-                .FirstOrDefault();
-            if (newer is not null) return newer.FullName;
+        var latest = files.OrderByDescending(f => f.LastWriteTimeUtc)
+            .ThenByDescending(f => f.CreationTimeUtc)
+            .First();
+        var selected = files.FirstOrDefault(f =>
+            string.Equals(f.FullName, current, StringComparison.OrdinalIgnoreCase));
+        if (selected is null) return latest.FullName;
+        if (string.Equals(selected.FullName, latest.FullName, StringComparison.OrdinalIgnoreCase))
+            return selected.FullName;
 
-            // Stick to the selected match while it is producing log output.
-            if (now - currentFile.LastWriteTimeUtc < TimeSpan.FromSeconds(30))
-                return currentFile.FullName;
-
-            // If no newer match has appeared, keep the last match selected rather
-            // than unexpectedly switching to an older replay.
-            return currentFile.FullName;
-        }
-
-        // Initial discovery: prefer a recently created, recently active log.
-        // CreationTimeUtc is not a perfect match identity, so the explicit --log
-        // option remains available for unusual file-copy/replay workflows.
-        return files.OrderByDescending(f => f.CreationTimeUtc)
-            .ThenByDescending(f => f.LastWriteTimeUtc)
-            .ThenByDescending(f => f.Name.StartsWith("game_", StringComparison.OrdinalIgnoreCase))
-            .First().FullName;
+        // Do not switch for a timestamp tie or tiny incidental touch.
+        // A newer actively written log will supersede a stale selection.
+        return latest.LastWriteTimeUtc > selected.LastWriteTimeUtc.AddSeconds(2)
+            ? latest.FullName
+            : selected.FullName;
     }
 }
