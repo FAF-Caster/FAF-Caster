@@ -8,7 +8,7 @@ namespace FAFCaster.Bridge;
 /// Read-only FAF API probe. Never reads credentials from the FAF client.
 /// Authentication, if needed, must use a separately authorised OAuth flow.
 /// </summary>
-public sealed class FafApiClient(HttpClient http)
+public sealed class FafApiClient(HttpClient http, FafOAuthService oauth)
 {
     public const string DefaultBaseUrl = "https://api.faforever.com/";
 
@@ -18,6 +18,8 @@ public sealed class FafApiClient(HttpClient http)
         using var request = new HttpRequestMessage(HttpMethod.Get,
             $"data/game/{gameId}");
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.api+json"));
+        var token = await oauth.GetAccessTokenAsync(cancellationToken);
+        if (token is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         try
         {
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
