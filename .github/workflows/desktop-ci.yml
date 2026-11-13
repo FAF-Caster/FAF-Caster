@@ -1,9 +1,8 @@
-name: Desktop CI
+name: Desktop CI and Stable Release
 
 on:
   push:
     branches: [develop, main]
-    tags: ['v*']
   pull_request:
     branches: [develop, main]
   workflow_dispatch:
@@ -11,8 +10,43 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: desktop-main-release
+  cancel-in-progress: false
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Calculate next stable version
+        id: next
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          [[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]] || { echo 'Main advanced; this run is stale.' >&2; exit 1; }
+          prefix="v$(date -u +%y.%m)."
+          last=-1
+          while IFS= read -r tag; do
+            suffix="${tag#"$prefix"}"
+            if [[ "$suffix" =~ ^[0-9]+$ ]]; then
+              number=$((10#$suffix))
+              if (( number > last )); then last=$number; fi
+            fi
+          done < <(git tag --list "${prefix}*")
+          tag="${prefix}$((last + 1))"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
   build-windows:
+    needs: version
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -30,7 +64,16 @@ jobs:
         run: npm ci
       - name: Publish Windows desktop and Bridge
         shell: pwsh
+        env:
+          FAF_CASTER_RELEASE_VERSION: ${{ needs.version.outputs.version }}
         run: ./scripts/publish-desktop.ps1
+      - name: Verify portable desktop contents
+        shell: pwsh
+        run: |
+          $out = 'artifacts/FAF-Caster-Desktop'
+          foreach ($file in @("$out/FAF.Caster.Desktop.exe", "$out/bridge/FAFCaster.Bridge.exe", "$out/dashboard/index.html")) {
+            if (-not (Test-Path $file)) { throw "Missing release component: $file" }
+          }
       - name: Package portable desktop
         shell: pwsh
         run: Compress-Archive -Path artifacts/FAF-Caster-Desktop -DestinationPath artifacts/FAF-Caster-Desktop-win-x64.zip -Force
@@ -41,3 +84,50 @@ jobs:
           path: artifacts/FAF-Caster-Desktop-win-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [version, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: FAF-Caster-Desktop-win-x64
+      - name: Create release notes and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.version.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$TAG" =~ ^v[0-9]{2}\.[0-9]{2}\.[0-9]+$ ]] || { echo "Invalid tag: $TAG" >&2; exit 1; }
+          git fetch origin main --tags
+          [[ "$(git rev-parse origin/main)" == "$GITHUB_SHA" ]] || { echo 'Main advanced; refusing to release stale build.' >&2; exit 1; }
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG already exists; refusing overwrite." >&2
+            exit 1
+          fi
+          mv FAF-Caster-Desktop-win-x64.zip "FAF-Caster-Desktop-${TAG}-win-x64.zip"
+          gh api "repos/${GH_REPO}/releases/generate-notes" -f tag_name="$TAG" -f target_commitish="$GITHUB_SHA" --jq '.body' > generated-changelog.md
+          {
+            echo "## Installation"
+            echo
+            echo "1. Download \`FAF-Caster-Desktop-${TAG}-win-x64.zip\`."
+            echo "2. Extract the ZIP and run \`FAF.Caster.Desktop.exe\`."
+            echo "3. Install and enable the matching [FAF Caster Bridge UI mod](https://github.com/FAF-Caster/faf-caster-ui-mod/releases)."
+            echo
+            echo "Portable Windows x64 build containing the desktop app, telemetry Bridge, and dashboard."
+            echo
+            echo "## Changes"
+            echo
+            cat generated-changelog.md
+          } > release-notes.md
+          [[ "$(git ls-remote origin refs/heads/main | cut -f1)" == "$GITHUB_SHA" ]] || { echo 'Main advanced; refusing stale tag.' >&2; exit 1; }
+          gh api "repos/${GH_REPO}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$GITHUB_SHA" >/dev/null
+          gh release create "$TAG" "FAF-Caster-Desktop-${TAG}-win-x64.zip" --verify-tag --title "FAF Caster Desktop $TAG" --notes-file release-notes.md

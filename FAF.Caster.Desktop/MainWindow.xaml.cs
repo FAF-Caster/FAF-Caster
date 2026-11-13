@@ -30,6 +30,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        VersionLabel.Text = $"Version {typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "unknown"}";
+        UpdateNavigation();
         SourceInitialized += (_, _) => ApplyWindows11Chrome();
         Loaded += OnLoaded;
         InitializeTray();
@@ -62,11 +64,21 @@ public partial class MainWindow : Window
         }
     }
 
+    private static Icon LoadTrayIcon()
+    {
+        var uri = new Uri("pack://application:,,,/Assets/FAF-Caster.ico", UriKind.Absolute);
+        var resource = System.Windows.Application.GetResourceStream(uri)
+            ?? throw new InvalidOperationException("Embedded FAF Caster icon is missing.");
+        using (resource.Stream)
+        using (var icon = new Icon(resource.Stream))
+            return (Icon)icon.Clone();
+    }
+
     private void InitializeTray()
     {
         _tray = new System.Windows.Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadTrayIcon(),
             Text = "FAF Caster · starting",
             Visible = true
         };
@@ -216,6 +228,8 @@ public partial class MainWindow : Window
         _showHome = true;
         HomePage.Visibility = Visibility.Visible;
         Browser.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Collapsed;
+        UpdateNavigation();
     }
     private void Home_Click(object sender, RoutedEventArgs e) => ShowHome();
     private void ShowHome()
@@ -231,8 +245,33 @@ public partial class MainWindow : Window
         _showHome = false;
         HomePage.Visibility = Visibility.Collapsed;
         Browser.Visibility = Visibility.Visible;
+        SettingsPage.Visibility = Visibility.Collapsed;
+        UpdateNavigation();
         if (_splashComplete) SplashScreen.Visibility = Visibility.Collapsed;
         if (_browserReady && _bridgeConnected) Browser.CoreWebView2.Navigate(BaseUrl + path);
+    }
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        _showHome = false;
+        HomePage.Visibility = Visibility.Collapsed;
+        Browser.Visibility = Visibility.Collapsed;
+        SettingsPage.Visibility = Visibility.Visible;
+        UpdateNavigation();
+    }
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    {
+        var folder = Path.GetDirectoryName(_logPath)!;
+        Directory.CreateDirectory(folder);
+        Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+    }
+    private void UpdateNavigation()
+    {
+        var active = (System.Windows.Style)FindResource("ActiveNavButton");
+        var normal = (System.Windows.Style)FindResource("NavButton");
+        HomeButton.Style = _showHome ? active : normal;
+        CompanionButton.Style = !_showHome && SettingsPage.Visibility != Visibility.Visible && _page == "/local" ? active : normal;
+        StudioButton.Style = !_showHome && SettingsPage.Visibility != Visibility.Visible && _page == "/local/studio" ? active : normal;
+        SettingsButton.Style = SettingsPage.Visibility == Visibility.Visible ? active : normal;
     }
     private void Companion_Click(object sender, RoutedEventArgs e) => Navigate("/local");
     private void Studio_Click(object sender, RoutedEventArgs e) => Navigate("/local/studio");
