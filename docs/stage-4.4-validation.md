@@ -33,7 +33,7 @@ All player and economy values come from the existing UI-only FAF telemetry. Team
 
 ## Known caveats
 
-- Team overrides currently made in the main dashboard use browser localStorage, which is not automatically shared with OBS. For dependable OBS team grouping, use team IDs supplied by match metadata. A future Bridge-backed team assignment API should unify manual overrides.
+- Team assignments made inside Overlay Studio are saved per slot through the Bridge and shared with OBS. Main dashboard manual overrides remain browser-local, so if you need to override detected teams for OBS, set them in Overlay Studio's **Team assignments** panel.
 - The original Bridge configuration API accepts five slots but does not enforce a schema for each widget. Keep the Bridge bound to localhost and do not expose its configuration API to the internet.
 - Browser-source scaling should be checked at 1920×1080 before a live tournament.
 
